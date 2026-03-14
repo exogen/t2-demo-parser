@@ -1,0 +1,144 @@
+{
+  "timestampIso": "2026-02-17T23:03:09.557Z",
+  "inputFile": "/Users/exogen/Projects/t2-demo-parser/demo022.rec",
+  "env": {
+    "HEURISTIC_GHOST_PARSER": null,
+    "FORCE_HEURISTIC_GHOST_PARSER": null,
+    "SHAPEBASE_IMAGE_EXTRA_FLAG": null,
+    "GHOST_OVERRIDE": null
+  },
+  "initialPhase2": {
+    "valid": false,
+    "trailingBits": 128260,
+    "error": null,
+    "events": 0,
+    "ghosts": 34,
+    "ghostingSequence": 11,
+    "controlObjectGhostIndex": -939264,
+    "missionName": "#\u001bâÃ\n·=C¸>H¬¼\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000VäÔ_\u001aÿ\u0016\u001f\u000b2TÀÆþý\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000Á\rk\u001d\u0010Ï!Ø\f\u0001\u0000\u0000\u0000\u0000\u0000\u0000\u0000èØ7ö\u0000\u0000\u0000ü\u0001\u0000\u0000ü\u0001\u0000\u0000üSög\u0000þýo>\u001cHýû\u0007\u0001\u0000\u0000\u0000\u0000\u0000\u0000\u0000Tb#\u0019^ä\u001c vçI\u0019\u0002\u0000\u0000\u0000\u0000\u0000\u0000\u0000P§ù\u0005\u0000\u0000ø\u0003\u0000\u0000ø\u0003\u0000\u0000øs#À\u0018É\u0000üûs¯0c[\u0011\u0000Æþý\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000`¸WÈÁ0òKïP",
+    "missionCRC": 1356380603
+  },
+  "pass2": {
+    "seededInitialGhosts": 0,
+    "controlParsed": 1126,
+    "controlFailed": 831,
+    "eventsParsed": 8059,
+    "eventsFailed": 0,
+    "ghostCreatesParsed": 2074,
+    "ghostUpdatesParsed": 13788,
+    "ghostDeletes": 14122,
+    "ghostsFailed": 2573
+  },
+  "counts": {
+    "blocksTotal": 117104,
+    "packetBlocks": 28120,
+    "parsedPackets": 28120,
+    "moveBlocks": 36712,
+    "infoBlocks": 28120,
+    "eventClassIdsUnique": 64,
+    "ghostClassIdsUnique": 128,
+    "unboundGhostClassIds": 75
+  },
+  "topUnboundGhostClassIds": [
+    {
+      "classId": 68,
+      "creates": 50,
+      "updates": 1996
+    },
+    {
+      "classId": 96,
+      "creates": 69,
+      "updates": 258
+    },
+    {
+      "classId": 112,
+      "creates": 52,
+      "updates": 209
+    },
+    {
+      "classId": 80,
+      "creates": 46,
+      "updates": 149
+    },
+    {
+      "classId": 56,
+      "creates": 29,
+      "updates": 55
+    },
+    {
+      "classId": 126,
+      "creates": 33,
+      "updates": 31
+    },
+    {
+      "classId": 60,
+      "creates": 24,
+      "updates": 39
+    },
+    {
+      "classId": 66,
+      "creates": 32,
+      "updates": 30
+    },
+    {
+      "classId": 104,
+      "creates": 29,
+      "updates": 32
+    },
+    {
+      "classId": 120,
+      "creates": 29,
+      "updates": 26
+    },
+    {
+      "classId": 72,
+      "creates": 32,
+      "updates": 20
+    },
+    {
+      "classId": 88,
+      "creates": 24,
+      "updates": 27
+    },
+    {
+      "classId": 116,
+      "creates": 14,
+      "updates": 35
+    },
+    {
+      "classId": 102,
+      "creates": 20,
+      "updates": 26
+    },
+    {
+      "classId": 91,
+      "creates": 13,
+      "updates": 32
+    },
+    {
+      "classId": 127,
+      "creates": 24,
+      "updates": 20
+    },
+    {
+      "classId": 75,
+      "creates": 10,
+      "updates": 32
+    },
+    {
+      "classId": 76,
+      "creates": 15,
+      "updates": 25
+    },
+    {
+      "classId": 54,
+      "creates": 23,
+      "updates": 16
+    },
+    {
+      "classId": 113,
+      "creates": 14,
+      "updates": 24
+    }
+  ]
+}

@@ -1,0 +1,3086 @@
+{
+  "classTable": [
+    {
+      "classId": 0,
+      "assignedId": 0,
+      "name": "AIObjective",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 1,
+      "assignedId": 1,
+      "name": "AudioEmitter",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 2,
+      "assignedId": 2,
+      "name": "BeaconObject",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 3,
+      "assignedId": 3,
+      "name": "BombProjectile",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 4,
+      "assignedId": 4,
+      "name": "Camera",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 5,
+      "assignedId": 5,
+      "name": "Debris",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 6,
+      "assignedId": 6,
+      "name": "ELFProjectile",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 7,
+      "assignedId": 7,
+      "name": "EnergyProjectile",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 8,
+      "assignedId": 8,
+      "name": "FireballAtmosphere",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 9,
+      "assignedId": 9,
+      "name": "FlareProjectile",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 10,
+      "assignedId": 10,
+      "name": "FlyingVehicle",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 11,
+      "assignedId": 11,
+      "name": "ForceFieldBare",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 12,
+      "assignedId": 12,
+      "name": "GameBase",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 13,
+      "assignedId": 13,
+      "name": "GrenadeProjectile",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 14,
+      "assignedId": 14,
+      "name": "HoverVehicle",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 15,
+      "assignedId": 15,
+      "name": "InteriorInstance",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 16,
+      "assignedId": 16,
+      "name": "Item",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 17,
+      "assignedId": 17,
+      "name": "Lightning",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 18,
+      "assignedId": 18,
+      "name": "LinearFlareProjectile",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 19,
+      "assignedId": 19,
+      "name": "LinearProjectile",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 20,
+      "assignedId": 20,
+      "name": "Marker",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 21,
+      "assignedId": 21,
+      "name": "MissionArea",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 22,
+      "assignedId": 22,
+      "name": "MissionMarker",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 23,
+      "assignedId": 23,
+      "name": "ParticleEmissionDummy",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 24,
+      "assignedId": 24,
+      "name": "PhysicalZone",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 25,
+      "assignedId": 25,
+      "name": "Player",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 26,
+      "assignedId": 26,
+      "name": "Precipitation",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 27,
+      "assignedId": 27,
+      "name": "Projectile",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 28,
+      "assignedId": 28,
+      "name": "RepairProjectile",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 29,
+      "assignedId": 29,
+      "name": "ScopeAlwaysShape",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 30,
+      "assignedId": 30,
+      "name": "SeekerProjectile",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 31,
+      "assignedId": 31,
+      "name": "ShapeBase",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 32,
+      "assignedId": 32,
+      "name": "ShockLanceProjectile",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 33,
+      "assignedId": 33,
+      "name": "Shockwave",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 34,
+      "assignedId": 34,
+      "name": "SimpleNetObject",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 35,
+      "assignedId": 35,
+      "name": "Sky",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 36,
+      "assignedId": 36,
+      "name": "SniperProjectile",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 37,
+      "assignedId": 37,
+      "name": "SpawnSphere",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 38,
+      "assignedId": 38,
+      "name": "Splash",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 39,
+      "assignedId": 39,
+      "name": "StaticShape",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 40,
+      "assignedId": 40,
+      "name": "StationFXPersonal",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 41,
+      "assignedId": 41,
+      "name": "StationFXVehicle",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 42,
+      "assignedId": 42,
+      "name": "Sun",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 43,
+      "assignedId": 43,
+      "name": "TSStatic",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 44,
+      "assignedId": 44,
+      "name": "TargetProjectile",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 45,
+      "assignedId": 45,
+      "name": "TerrainBlock",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 46,
+      "assignedId": 46,
+      "name": "TracerProjectile",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 47,
+      "assignedId": 47,
+      "name": "Trigger",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 48,
+      "assignedId": 48,
+      "name": "Turret",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 49,
+      "assignedId": 49,
+      "name": "VehicleBlocker",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 50,
+      "assignedId": 50,
+      "name": "WaterBlock",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 51,
+      "assignedId": 51,
+      "name": "WayPoint",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 52,
+      "assignedId": 52,
+      "name": "WheeledVehicle",
+      "version": 1,
+      "classIdBase": 0,
+      "type": "ghost"
+    },
+    {
+      "classId": 128,
+      "assignedId": 128,
+      "name": "AudioDescription",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 129,
+      "assignedId": 129,
+      "name": "AudioEnvironment",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 130,
+      "assignedId": 130,
+      "name": "AudioProfile",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 131,
+      "assignedId": 131,
+      "name": "AudioSampleEnvironment",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 132,
+      "assignedId": 132,
+      "name": "BombProjectileData",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 133,
+      "assignedId": 133,
+      "name": "CameraData",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 134,
+      "assignedId": 134,
+      "name": "CannedChatItem",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 135,
+      "assignedId": 135,
+      "name": "CommanderIconData",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 136,
+      "assignedId": 136,
+      "name": "DebrisData",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 137,
+      "assignedId": 137,
+      "name": "DecalData",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 138,
+      "assignedId": 138,
+      "name": "ELFProjectileData",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 139,
+      "assignedId": 139,
+      "name": "EffectProfile",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 140,
+      "assignedId": 140,
+      "name": "EnergyProjectileData",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 141,
+      "assignedId": 141,
+      "name": "ExplosionData",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 142,
+      "assignedId": 142,
+      "name": "FireballAtmosphereData",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 143,
+      "assignedId": 143,
+      "name": "FlareProjectileData",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 144,
+      "assignedId": 144,
+      "name": "FlyingVehicleData",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 145,
+      "assignedId": 145,
+      "name": "ForceFieldBareData",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 146,
+      "assignedId": 146,
+      "name": "GameBaseData",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 147,
+      "assignedId": 147,
+      "name": "GrenadeProjectileData",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 148,
+      "assignedId": 148,
+      "name": "HoverVehicleData",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 149,
+      "assignedId": 149,
+      "name": "ItemData",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 150,
+      "assignedId": 150,
+      "name": "JetEffectData",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 151,
+      "assignedId": 151,
+      "name": "LightningData",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 152,
+      "assignedId": 152,
+      "name": "LinearFlareProjectileData",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 153,
+      "assignedId": 153,
+      "name": "LinearProjectileData",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 154,
+      "assignedId": 154,
+      "name": "MissionMarkerData",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 155,
+      "assignedId": 155,
+      "name": "ParticleData",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 156,
+      "assignedId": 156,
+      "name": "ParticleEmissionDummyData",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 157,
+      "assignedId": 157,
+      "name": "ParticleEmitterData",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 158,
+      "assignedId": 158,
+      "name": "PlayerData",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 159,
+      "assignedId": 159,
+      "name": "PrecipitationData",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 160,
+      "assignedId": 160,
+      "name": "ProjectileData",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 161,
+      "assignedId": 161,
+      "name": "RepairProjectileData",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 162,
+      "assignedId": 162,
+      "name": "RunningLightData",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 163,
+      "assignedId": 163,
+      "name": "SeekerProjectileData",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 164,
+      "assignedId": 164,
+      "name": "SensorData",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 165,
+      "assignedId": 165,
+      "name": "ShapeBaseData",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 166,
+      "assignedId": 166,
+      "name": "ShapeBaseImageData",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 167,
+      "assignedId": 167,
+      "name": "ShockLanceProjectileData",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 168,
+      "assignedId": 168,
+      "name": "ShockwaveData",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 169,
+      "assignedId": 169,
+      "name": "SimDataBlock",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 170,
+      "assignedId": 170,
+      "name": "SniperProjectileData",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 171,
+      "assignedId": 171,
+      "name": "SplashData",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 172,
+      "assignedId": 172,
+      "name": "StaticShapeData",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 173,
+      "assignedId": 173,
+      "name": "StationFXPersonalData",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 174,
+      "assignedId": 174,
+      "name": "StationFXVehicleData",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 175,
+      "assignedId": 175,
+      "name": "TSShapeConstructor",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 176,
+      "assignedId": 176,
+      "name": "TargetProjectileData",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 177,
+      "assignedId": 177,
+      "name": "TracerProjectileData",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 178,
+      "assignedId": 178,
+      "name": "TriggerData",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 179,
+      "assignedId": 179,
+      "name": "TurretData",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 180,
+      "assignedId": 180,
+      "name": "TurretImageData",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 181,
+      "assignedId": 181,
+      "name": "WheeledVehicleData",
+      "version": 1,
+      "classIdBase": 128,
+      "type": "datablock"
+    },
+    {
+      "classId": 255,
+      "assignedId": 255,
+      "name": "CRCChallengeEvent",
+      "version": 1,
+      "classIdBase": 255,
+      "type": "event"
+    },
+    {
+      "classId": 256,
+      "assignedId": 256,
+      "name": "CRCChallengeResponseEvent",
+      "version": 1,
+      "classIdBase": 255,
+      "type": "event"
+    },
+    {
+      "classId": 257,
+      "assignedId": 257,
+      "name": "FogChallengeEvent",
+      "version": 1,
+      "classIdBase": 255,
+      "type": "event"
+    },
+    {
+      "classId": 258,
+      "assignedId": 258,
+      "name": "GhostAlwaysObjectEvent",
+      "version": 1,
+      "classIdBase": 255,
+      "type": "event"
+    },
+    {
+      "classId": 259,
+      "assignedId": 259,
+      "name": "GhostingMessageEvent",
+      "version": 1,
+      "classIdBase": 255,
+      "type": "event"
+    },
+    {
+      "classId": 260,
+      "assignedId": 260,
+      "name": "GravityEvent",
+      "version": 1,
+      "classIdBase": 255,
+      "type": "event"
+    },
+    {
+      "classId": 261,
+      "assignedId": 261,
+      "name": "LightningStrikeEvent",
+      "version": 1,
+      "classIdBase": 255,
+      "type": "event"
+    },
+    {
+      "classId": 262,
+      "assignedId": 262,
+      "name": "NetStringEvent",
+      "version": 1,
+      "classIdBase": 255,
+      "type": "event"
+    },
+    {
+      "classId": 263,
+      "assignedId": 263,
+      "name": "PathManagerEvent",
+      "version": 1,
+      "classIdBase": 255,
+      "type": "event"
+    },
+    {
+      "classId": 264,
+      "assignedId": 264,
+      "name": "RemoteCommandEvent",
+      "version": 1,
+      "classIdBase": 255,
+      "type": "event"
+    },
+    {
+      "classId": 265,
+      "assignedId": 265,
+      "name": "RemoveClientTargetTypeEvent",
+      "version": 1,
+      "classIdBase": 255,
+      "type": "event"
+    },
+    {
+      "classId": 266,
+      "assignedId": 266,
+      "name": "ResetClientTargetsEvent",
+      "version": 1,
+      "classIdBase": 255,
+      "type": "event"
+    },
+    {
+      "classId": 267,
+      "assignedId": 267,
+      "name": "SensorGroupColorEvent",
+      "version": 1,
+      "classIdBase": 255,
+      "type": "event"
+    },
+    {
+      "classId": 268,
+      "assignedId": 268,
+      "name": "SetMissionCRCEvent",
+      "version": 1,
+      "classIdBase": 255,
+      "type": "event"
+    },
+    {
+      "classId": 269,
+      "assignedId": 269,
+      "name": "SetObjectActiveImageEvent",
+      "version": 1,
+      "classIdBase": 255,
+      "type": "event"
+    },
+    {
+      "classId": 270,
+      "assignedId": 270,
+      "name": "SetSensorGroupEvent",
+      "version": 1,
+      "classIdBase": 255,
+      "type": "event"
+    },
+    {
+      "classId": 271,
+      "assignedId": 271,
+      "name": "SetServerTargetEvent",
+      "version": 1,
+      "classIdBase": 255,
+      "type": "event"
+    },
+    {
+      "classId": 272,
+      "assignedId": 272,
+      "name": "Sim2DAudioEvent",
+      "version": 1,
+      "classIdBase": 255,
+      "type": "event"
+    },
+    {
+      "classId": 273,
+      "assignedId": 273,
+      "name": "Sim3DAudioEvent",
+      "version": 1,
+      "classIdBase": 255,
+      "type": "event"
+    },
+    {
+      "classId": 274,
+      "assignedId": 274,
+      "name": "SimDataBlockEvent",
+      "version": 1,
+      "classIdBase": 255,
+      "type": "event"
+    },
+    {
+      "classId": 275,
+      "assignedId": 275,
+      "name": "SimTargetAudioEvent",
+      "version": 1,
+      "classIdBase": 255,
+      "type": "event"
+    },
+    {
+      "classId": 276,
+      "assignedId": 276,
+      "name": "SimVoiceStreamEvent",
+      "version": 1,
+      "classIdBase": 255,
+      "type": "event"
+    },
+    {
+      "classId": 277,
+      "assignedId": 277,
+      "name": "SimpleMessageEvent",
+      "version": 1,
+      "classIdBase": 255,
+      "type": "event"
+    },
+    {
+      "classId": 278,
+      "assignedId": 278,
+      "name": "TargetFreeEvent",
+      "version": 1,
+      "classIdBase": 255,
+      "type": "event"
+    },
+    {
+      "classId": 279,
+      "assignedId": 279,
+      "name": "TargetInfoEvent",
+      "version": 1,
+      "classIdBase": 255,
+      "type": "event"
+    },
+    {
+      "classId": 280,
+      "assignedId": 280,
+      "name": "TargetToEvent",
+      "version": 1,
+      "classIdBase": 255,
+      "type": "event"
+    }
+  ],
+  "linkedList": [
+    {
+      "name": "TSShapeConstructor",
+      "classId": 175,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "BeaconObject",
+      "classId": 2,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "FogChallengeEvent",
+      "classId": 257,
+      "classIdBase": 255,
+      "version": 1,
+      "type": "event"
+    },
+    {
+      "name": "CRCChallengeResponseEvent",
+      "classId": 256,
+      "classIdBase": 255,
+      "version": 1,
+      "type": "event"
+    },
+    {
+      "name": "CRCChallengeEvent",
+      "classId": 255,
+      "classIdBase": 255,
+      "version": 1,
+      "type": "event"
+    },
+    {
+      "name": "GuiDTSView",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "RunningLightData",
+      "classId": 162,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "JetEffectData",
+      "classId": 150,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "StationFXVehicle",
+      "classId": 41,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "StationFXVehicleData",
+      "classId": 174,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "StationFXPersonal",
+      "classId": 40,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "StationFXPersonalData",
+      "classId": 173,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "FireballAtmosphereData",
+      "classId": 142,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "FireballAtmosphere",
+      "classId": 8,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "BombProjectileData",
+      "classId": 132,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "BombProjectile",
+      "classId": 3,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "BanList",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "EnergyProjectileData",
+      "classId": 140,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "EnergyProjectile",
+      "classId": 7,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "Splash",
+      "classId": 38,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "SplashData",
+      "classId": 171,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "TSStatic",
+      "classId": 43,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "Shockwave",
+      "classId": 33,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "ShockwaveData",
+      "classId": 168,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "PhysicalZone",
+      "classId": 24,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "GameTSCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "ScopeAlwaysShape",
+      "classId": 29,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "FlareProjectile",
+      "classId": 9,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "FlareProjectileData",
+      "classId": 143,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "Debris",
+      "classId": 5,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "DebrisData",
+      "classId": 136,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "PrecipitationData",
+      "classId": 159,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "Precipitation",
+      "classId": 26,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "AudioEmitter",
+      "classId": 1,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "GuiPlayerView",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiEmailBrowser",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiServerBrowser",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiLoginPasswordCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "BombSight",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "ForceFieldBare",
+      "classId": 11,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "ForceFieldBareData",
+      "classId": 145,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "ClientTarget",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "RemoveClientTargetTypeEvent",
+      "classId": 265,
+      "classIdBase": 255,
+      "version": 1,
+      "type": "event"
+    },
+    {
+      "name": "ResetClientTargetsEvent",
+      "classId": 266,
+      "classIdBase": 255,
+      "version": 1,
+      "type": "event"
+    },
+    {
+      "name": "SensorGroupColorEvent",
+      "classId": 267,
+      "classIdBase": 255,
+      "version": 1,
+      "type": "event"
+    },
+    {
+      "name": "SimTargetAudioEvent",
+      "classId": 275,
+      "classIdBase": 255,
+      "version": 1,
+      "type": "event"
+    },
+    {
+      "name": "TargetInfoEvent",
+      "classId": 279,
+      "classIdBase": 255,
+      "version": 1,
+      "type": "event"
+    },
+    {
+      "name": "TargetFreeEvent",
+      "classId": 278,
+      "classIdBase": 255,
+      "version": 1,
+      "type": "event"
+    },
+    {
+      "name": "SpawnSphere",
+      "classId": 37,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "WayPoint",
+      "classId": 51,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "MissionMarker",
+      "classId": 22,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "MissionMarkerData",
+      "classId": 154,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "SensorData",
+      "classId": 164,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "CommanderIconData",
+      "classId": 135,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "GuiNoMouseCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiCommanderMapPopupMenu",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiCommanderMapCheckbox",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiCommanderMapButton",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiCommanderTree",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiCommanderTV",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiCommanderMap",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "Turret",
+      "classId": 48,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "TurretImageData",
+      "classId": 180,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "TurretData",
+      "classId": 179,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "ShockLanceProjectile",
+      "classId": 32,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "ShockLanceProjectileData",
+      "classId": 167,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "ELFProjectile",
+      "classId": 6,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "ELFProjectileData",
+      "classId": 138,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "TargetProjectile",
+      "classId": 44,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "TargetProjectileData",
+      "classId": 176,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "RepairProjectile",
+      "classId": 28,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "RepairProjectileData",
+      "classId": 161,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "SniperProjectile",
+      "classId": 36,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "SniperProjectileData",
+      "classId": 170,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "TracerProjectile",
+      "classId": 46,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "TracerProjectileData",
+      "classId": 177,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "LinearFlareProjectile",
+      "classId": 18,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "LinearFlareProjectileData",
+      "classId": 152,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "SeekerProjectile",
+      "classId": 30,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "SeekerProjectileData",
+      "classId": 163,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "GrenadeProjectileData",
+      "classId": 147,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "GrenadeProjectile",
+      "classId": 13,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "Projectile",
+      "classId": 27,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "ProjectileData",
+      "classId": 160,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "LinearProjectile",
+      "classId": 19,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "LinearProjectileData",
+      "classId": 153,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "LightningStrikeEvent",
+      "classId": 261,
+      "classIdBase": 255,
+      "version": 1,
+      "type": "event"
+    },
+    {
+      "name": "Lightning",
+      "classId": 17,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "LightningData",
+      "classId": 151,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "ParticleEmissionDummy",
+      "classId": 23,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "ParticleEmissionDummyData",
+      "classId": 156,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "ParticleData",
+      "classId": 155,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "ParticleEmitterData",
+      "classId": 157,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "ExplosionData",
+      "classId": 141,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "Explosion",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "Trigger",
+      "classId": 47,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "TriggerData",
+      "classId": 178,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "DebugView",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "MissionArea",
+      "classId": 21,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "HoverVehicle",
+      "classId": 14,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "HoverVehicleData",
+      "classId": 148,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "WheeledVehicle",
+      "classId": 52,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "WheeledVehicleData",
+      "classId": 181,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "FlyingVehicle",
+      "classId": 10,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "FlyingVehicleData",
+      "classId": 144,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "Vehicle",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "VehicleData",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiTorusCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "Item",
+      "classId": 16,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "ItemData",
+      "classId": 149,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "StaticShape",
+      "classId": 39,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "StaticShapeData",
+      "classId": 172,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "GravityEvent",
+      "classId": 260,
+      "classIdBase": 255,
+      "version": 1,
+      "type": "event"
+    },
+    {
+      "name": "SetMissionCRCEvent",
+      "classId": 268,
+      "classIdBase": 255,
+      "version": 1,
+      "type": "event"
+    },
+    {
+      "name": "SetObjectActiveImageEvent",
+      "classId": 269,
+      "classIdBase": 255,
+      "version": 1,
+      "type": "event"
+    },
+    {
+      "name": "Sim3DAudioEvent",
+      "classId": 273,
+      "classIdBase": 255,
+      "version": 1,
+      "type": "event"
+    },
+    {
+      "name": "Sim2DAudioEvent",
+      "classId": 272,
+      "classIdBase": 255,
+      "version": 1,
+      "type": "event"
+    },
+    {
+      "name": "SimDataBlockEvent",
+      "classId": 274,
+      "classIdBase": 255,
+      "version": 1,
+      "type": "event"
+    },
+    {
+      "name": "TargetToEvent",
+      "classId": 280,
+      "classIdBase": 255,
+      "version": 1,
+      "type": "event"
+    },
+    {
+      "name": "SetServerTargetEvent",
+      "classId": 271,
+      "classIdBase": 255,
+      "version": 1,
+      "type": "event"
+    },
+    {
+      "name": "SetSensorGroupEvent",
+      "classId": 270,
+      "classIdBase": 255,
+      "version": 1,
+      "type": "event"
+    },
+    {
+      "name": "GameConnection",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "ShapeBaseImageData",
+      "classId": 166,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "ShapeBase",
+      "classId": 31,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "ShapeBaseData",
+      "classId": 165,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "GameBase",
+      "classId": 12,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "GameBaseData",
+      "classId": 146,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "ShowTSCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "Player",
+      "classId": 25,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "PlayerData",
+      "classId": 158,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "Camera",
+      "classId": 4,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "CameraData",
+      "classId": 133,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "SimpleNetObject",
+      "classId": 34,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "SimpleMessageEvent",
+      "classId": 277,
+      "classIdBase": 255,
+      "version": 1,
+      "type": "event"
+    },
+    {
+      "name": "Terraformer",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "RemoteCommandEvent",
+      "classId": 264,
+      "classIdBase": 255,
+      "version": 1,
+      "type": "event"
+    },
+    {
+      "name": "SecureHTTPObject",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "HTTPObject",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "TCPObject",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "VehicleBlocker",
+      "classId": 49,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "WaterBlock",
+      "classId": 50,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "Sun",
+      "classId": 42,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "Sky",
+      "classId": 35,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "TerrainBlock",
+      "classId": 45,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "DecalData",
+      "classId": 137,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "DecalManager",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "CannedChatItem",
+      "classId": 134,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "Marker",
+      "classId": 20,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "Path",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "PathManagerEvent",
+      "classId": 263,
+      "classIdBase": 255,
+      "version": 1,
+      "type": "event"
+    },
+    {
+      "name": "SceneObject",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "NetStringEvent",
+      "classId": 262,
+      "classIdBase": 255,
+      "version": 1,
+      "type": "event"
+    },
+    {
+      "name": "NetConnection",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "NetObject",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GhostAlwaysObjectEvent",
+      "classId": 258,
+      "classIdBase": 255,
+      "version": 1,
+      "type": "event"
+    },
+    {
+      "name": "GhostingMessageEvent",
+      "classId": 259,
+      "classIdBase": 255,
+      "version": 1,
+      "type": "event"
+    },
+    {
+      "name": "ActionMap",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "MirrorSubObject",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "InteriorInstance",
+      "classId": 15,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "EffectProfile",
+      "classId": 139,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "HudNetDisplay",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "HudZoom",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "HudHorzCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "HudHelpTag",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "HudScoreCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "HudFancyCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "HudBombSight",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "HudCrosshair",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "HudNavDisplay",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "HudPulsingBitmap",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "HudCompass",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "HudHeat",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "HudDamage",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "HudCapacitor",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "HudEnergy",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "HudBarBaseCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "HudVehicleWeapon",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "HudInventory",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "HudWeapons",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "HudWeaponInvBase",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "HudClock",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "HudCommandMsg",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "HudChat",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "HudBitmapFrameCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "HudBitmapCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "HudCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "ShellChatMemberList",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "ShellAdCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "ShellTabGroupCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "ShellWindowCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "ShellTabFrame",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "ShellTabButton",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "ShellFieldCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "ShellSliderCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "ShellFancyTextList",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "ShellFancyArrayScrollCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "ShellFancyArray",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "VirtualScrollCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "VirtualScrollContentCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "ShellProgressBar",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "ShellDlgFrame",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "ShellPaneCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "ShellPopupMenu",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "ShellScrollCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "ShellTextEditCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "ShellTextList",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "ShellLaunchMenu",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "ShellRadioButton",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "ShellToggleButton",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "ShellBitmapButton",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiDashBoardCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiConsoleVariableCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiAviBitmapCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiBubbleTextCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiChannelVectorCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "ChannelVector",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiInputCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiChatMenuTreeCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiMouseEventCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiMessageVectorCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "MessageVector",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiMLTextEditCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiMLTextCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiTSCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiTreeViewCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiFrameSetCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiBorderButtonCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiConsoleEditCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiControlListPopUp",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiFadeinBitmapCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiChunkedBitmapCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "DbgFileView",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiConsoleTextCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiEditCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiTreeView",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiInspector",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiConsole",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiMenuBar",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiVoteCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiProgressCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiTextEditSliderCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiBackgroundCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiFilterCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiPopUpMenuCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiWindowCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiSliderCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiScrollCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiScrollContentCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiArrayCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiCheckBoxCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiRadioCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiButtonCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiBitmapCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiTextListCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiButtonBaseCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiTextEditCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiTextCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiCanvas",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiControl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiCursor",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiControlProfile",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GroundPlan",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "FloorPlan",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "NavigationGraph",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "AIObjectiveQ",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "AIObjective",
+      "classId": 0,
+      "classIdBase": 0,
+      "version": 1,
+      "type": "ghost"
+    },
+    {
+      "name": "AITask",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "AIConnection",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "MissionAreaEditor",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "EditTSCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "GuiTerrPreviewCtrl",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "CreatorTree",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "WorldEditor",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "TerrainEditor",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "EditManager",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "MaterialPropertyMap",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "FileObject",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "SimGroup",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "SimSet",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "SimDataBlock",
+      "classId": 169,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "SimObject",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "ScriptObject",
+      "classId": -1,
+      "classIdBase": -1,
+      "version": 1,
+      "type": "non-net"
+    },
+    {
+      "name": "SimVoiceStreamEvent",
+      "classId": 276,
+      "classIdBase": 255,
+      "version": 1,
+      "type": "event"
+    },
+    {
+      "name": "AudioProfile",
+      "classId": 130,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "AudioDescription",
+      "classId": 128,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "AudioSampleEnvironment",
+      "classId": 131,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    },
+    {
+      "name": "AudioEnvironment",
+      "classId": 129,
+      "classIdBase": 128,
+      "version": 1,
+      "type": "datablock"
+    }
+  ],
+  "summary": {
+    "ghosts": 53,
+    "datablocks": 54,
+    "events": 26,
+    "modGhosts": 0,
+    "total": 133
+  }
+}

@@ -1,0 +1,144 @@
+{
+  "timestampIso": "2026-02-17T22:47:48.653Z",
+  "inputFile": "/Users/exogen/Projects/t2-demo-parser/demo022.rec",
+  "env": {
+    "HEURISTIC_GHOST_PARSER": "0",
+    "FORCE_HEURISTIC_GHOST_PARSER": null,
+    "SHAPEBASE_IMAGE_EXTRA_FLAG": null,
+    "GHOST_OVERRIDE": null
+  },
+  "initialPhase2": {
+    "valid": false,
+    "trailingBits": 188927,
+    "error": null,
+    "events": 0,
+    "ghosts": 5,
+    "ghostingSequence": 11,
+    "controlObjectGhostIndex": 0,
+    "missionName": "t",
+    "missionCRC": 2080768
+  },
+  "pass2": {
+    "seededInitialGhosts": 0,
+    "controlParsed": 1957,
+    "controlFailed": 0,
+    "eventsParsed": 8810,
+    "eventsFailed": 0,
+    "ghostCreatesParsed": 1804,
+    "ghostUpdatesParsed": 8892,
+    "ghostDeletes": 13857,
+    "ghostsFailed": 1714
+  },
+  "counts": {
+    "blocksTotal": 117104,
+    "packetBlocks": 28120,
+    "parsedPackets": 28120,
+    "moveBlocks": 36712,
+    "infoBlocks": 28120,
+    "eventClassIdsUnique": 64,
+    "ghostClassIdsUnique": 128,
+    "unboundGhostClassIds": 75
+  },
+  "topUnboundGhostClassIds": [
+    {
+      "classId": 68,
+      "creates": 67,
+      "updates": 8193
+    },
+    {
+      "classId": 96,
+      "creates": 64,
+      "updates": 294
+    },
+    {
+      "classId": 112,
+      "creates": 43,
+      "updates": 191
+    },
+    {
+      "classId": 56,
+      "creates": 24,
+      "updates": 140
+    },
+    {
+      "classId": 80,
+      "creates": 29,
+      "updates": 130
+    },
+    {
+      "classId": 62,
+      "creates": 15,
+      "updates": 113
+    },
+    {
+      "classId": 88,
+      "creates": 10,
+      "updates": 78
+    },
+    {
+      "classId": 72,
+      "creates": 32,
+      "updates": 30
+    },
+    {
+      "classId": 86,
+      "creates": 13,
+      "updates": 47
+    },
+    {
+      "classId": 60,
+      "creates": 18,
+      "updates": 34
+    },
+    {
+      "classId": 116,
+      "creates": 13,
+      "updates": 38
+    },
+    {
+      "classId": 120,
+      "creates": 25,
+      "updates": 25
+    },
+    {
+      "classId": 73,
+      "creates": 6,
+      "updates": 39
+    },
+    {
+      "classId": 114,
+      "creates": 11,
+      "updates": 29
+    },
+    {
+      "classId": 117,
+      "creates": 10,
+      "updates": 26
+    },
+    {
+      "classId": 126,
+      "creates": 13,
+      "updates": 23
+    },
+    {
+      "classId": 54,
+      "creates": 17,
+      "updates": 18
+    },
+    {
+      "classId": 66,
+      "creates": 21,
+      "updates": 14
+    },
+    {
+      "classId": 104,
+      "creates": 25,
+      "updates": 9
+    },
+    {
+      "classId": 124,
+      "creates": 18,
+      "updates": 15
+    }
+  ]
+}
