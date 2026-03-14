@@ -54,6 +54,7 @@ export {
   DataBlockObjectIdFirst,
   DataBlockObjectIdBitSize,
   DataBlockClassFirst,
+  DataBlockClassBitSize,
   DataBlockClassNames,
   NetObjectClassNames,
   NetEventClassNames,

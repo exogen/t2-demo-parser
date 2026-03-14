@@ -1,27 +1,8 @@
 {
   "name": "t2-demo-parser",
   "version": "1.0.0",
+  "author": "Brian Beck <exogen@gmail.com>",
   "description": "Parser for Tribes 2 demo recordings (.rec files)",
-  "type": "module",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
-    }
-  },
-  "bin": {
-    "t2-demo-parser": "./dist/cli.js"
-  },
-  "files": [
-    "dist"
-  ],
-  "scripts": {
-    "build": "rm -rf dist && tsc -p tsconfig.build.json",
-    "dev": "tsx src/cli.ts",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "prepare": "rm -rf dist && tsc -p tsconfig.build.json"
-  },
   "keywords": [
     "tribes2",
     "tribes-2",
@@ -30,17 +11,36 @@
     "replay",
     "parser"
   ],
-  "author": "Brian Beck <exogen@gmail.com>",
   "license": "MIT",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "bin": {
+    "t2-demo-parser": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "dev": "tsx src/cli.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepare": "rm -rf dist && tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "debug": "^4.4.3",
+    "fflate": "^0.8.2"
+  },
   "devDependencies": {
     "@types/debug": "^4.1.12",
     "@types/node": "^25.2.3",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "vitest": "^4.0.18"
-  },
-  "dependencies": {
-    "debug": "^4.4.3",
-    "fflate": "^0.8.2"
   }
 }

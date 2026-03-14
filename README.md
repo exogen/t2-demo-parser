@@ -5,7 +5,8 @@ movement, ghost object lifecycles, network events, and animation timelines from
 recordings made by the Tribes 2 client (build 25034, Torque engine).
 
 Designed for use in browser-based replay viewers. The async API keeps the main
-thread responsive: decompression runs off-thread, and blocks are parsed lazily
+thread responsive: in browsers, decompression runs in a Web Worker via
+[fflate](https://github.com/101arrowz/fflate), and blocks are parsed lazily
 one at a time.
 
 ## Install
@@ -174,6 +175,7 @@ interface InitialBlockData {
   // Player/team state
   scoreEntries: ScoreEntry[];
   targetEntries: TargetEntry[];
+  sensorGroupColors: SensorGroupColor[];
 
   // Connection state
   connectionState: ConnectionProtocolState;
@@ -187,6 +189,7 @@ interface InitialBlockData {
   // Control object (the recording player)
   controlObjectGhostIndex: number;    // -1 if none
   controlObjectData?: Record<string, unknown>;
+  firstPerson: boolean;
 
   // Mission info
   missionName: string;
@@ -195,9 +198,9 @@ interface InitialBlockData {
   // Misc
   taggedStrings: Map<number, string>;
   demoValues: string[];
-  demoSetting: number;
   connectionFields: number[];
   stateArray: number[];
+  pathManager: PathManagerEntry[];
   notifyCount: number;
   nextRecvEventSeq: number;
   ghostingSequence: number;
@@ -257,7 +260,16 @@ interface GameState {
   controlObjectData?: Record<string, unknown>;
   compressionPoint?: { x: number; y: number; z: number };
   cameraFov?: number;
-  // ... seeker/lock-on fields
+  targetVisibility?: { index: number; mask: number }[];
+
+  // Seeker/lock-on fields
+  selfLocked?: boolean;
+  selfHomed?: boolean;
+  seekerTracking?: boolean;
+  seekerTrackingPos?: { x: number; y: number; z: number };
+  seekerMode?: number;
+  seekerObjectGhostIndex?: number;
+  targetPos?: { x: number; y: number; z: number };
 }
 ```
 
@@ -369,7 +381,7 @@ with position data are included.
 interface ExportTimeline {
   durationMs: number;
   tickIntervalMs: number;
-  controlObject: { t: number; p?: [x, y, z]; v?: [x, y, z] }[];
+  controlObject: { t: number; p?: [number, number, number]; v?: [number, number, number] }[];
   ghosts: ExportGhostInstance[];
   events: GameEvent[];
 }
@@ -539,6 +551,7 @@ import {
   DataBlockObjectIdFirst,   // 3
   DataBlockObjectIdBitSize, // 10
   DataBlockClassFirst,      // 128
+  DataBlockClassBitSize,    // 7
 } from "t2-demo-parser";
 ```
 
