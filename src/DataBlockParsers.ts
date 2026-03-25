@@ -1847,12 +1847,13 @@ function forceFieldBareDataUnpack(bs: BitStream): Record<string, unknown> {
   result.color1 = readColorF(bs);
   result.color2 = readColorF(bs);
 
-  // 5 F32 (offsets 0x84, 0x88, 0x80, 0x78, 0x7c)
-  result.banRadius = bs.readF32();
-  result.speed = bs.readF32();
-  result.maxSpeed = bs.readF32();
-  result.attackMS = bs.readF32();
-  result.decayMS = bs.readF32();
+  // Offsets 0x84, 0x88, 0x80, 0x78, 0x7c — named to match TorqueScript fields.
+  // framesPerSec and numFrames are S32 (integers); the rest are F32.
+  result.framesPerSec = bs.readS32(); // 0x84
+  result.numFrames = bs.readS32();    // 0x88
+  result.scrollSpeed = bs.readF32();  // 0x80
+  result.umapping = bs.readF32();     // 0x78
+  result.vmapping = bs.readF32();     // 0x7c
 
   // 5 readString (loop at 0x50+i*4)
   result.texture0 = bs.readString();
