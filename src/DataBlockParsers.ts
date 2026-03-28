@@ -132,22 +132,22 @@ function shapeBaseDataUnpack(bs: BitStream): Record<string, unknown> {
 
   // 3 more boolean flags (grouped together in binary, different from V12)
   // Binary: this+0x325, 0x329, 0x32a
-  result.firstPersonOnly = bs.readFlag();
-  result.isInvincible = bs.readFlag();
-  result.renderWhenDestroyed = bs.readFlag();
+  result.emap = bs.readFlag();              // 0x325
+  result.isInvincible = bs.readFlag();      // 0x329
+  result.renderWhenDestroyed = bs.readFlag(); // 0x32a
 
   // 4 DataBlock refs using readClassId (FUN_00436d10 = readInt(11))
   // Binary: each is readFlag + readClassId → this+0x70, 0x60, 0x68, 0x58
-  result.debris = readDataBlockRef(bs);
-  result.explosion = readDataBlockRef(bs);
-  result.underwaterExplosion = readDataBlockRef(bs);
-  result.debrisEmitter = readDataBlockRef(bs); // 4th ref at offset 0x58
+  result.cmdIcon = readDataBlockRef(bs);          // 0x6c/0x70
+  result.explosion = readDataBlockRef(bs);        // 0x5c/0x60
+  result.underwaterExplosion = readDataBlockRef(bs); // 0x64/0x68
+  result.debris = readDataBlockRef(bs);           // 0x54/0x58
 
   // 3 more boolean flags
   // Binary: this+0x32b, 0x326, 0x327
-  result.inheritEnergyFromMount = bs.readFlag();
-  result.useEyePoint = bs.readFlag();
-  result.emap = bs.readFlag();
+  result.inheritEnergyFromMount = bs.readFlag();  // 0x32b
+  result.firstPersonOnly = bs.readFlag();         // 0x326
+  result.useEyePoint = bs.readFlag();             // 0x327
 
   // shieldEffectLifetimeMS — U32 → this+0x94
   result.shieldEffectLifetimeMS = bs.readU32();
