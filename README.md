@@ -9,12 +9,6 @@ thread responsive: in browsers, decompression runs in a Web Worker via
 [fflate](https://github.com/101arrowz/fflate), and blocks are parsed lazily
 one at a time.
 
-## Install
-
-```
-npm install t2-demo-parser
-```
-
 ## Quick start
 
 ```typescript
