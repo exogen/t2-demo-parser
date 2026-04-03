@@ -3,6 +3,7 @@ import { BitStream } from "./BitStream.js";
 import {
   DataPacket,
   MaxGhostCount,
+  GhostMsgEndGhosting,
   NetEventClassBitSize,
   NetEventClassFirst,
   NetObjectClassBitSize,
@@ -666,9 +667,11 @@ export class PacketParser {
 
     if (eventType === "GhostingMessageEvent") {
       const message = parsedData.message;
-      // Tribes 2 handleGhostMessage: EndGhosting (2) clears all local ghosts.
-      if (typeof message === "number" && message === 2) {
+      // Tribes 2 handleGhostMessage: EndGhosting clears all local ghosts
+      // and invalidates all datablocks (they get re-sent for the new mission).
+      if (typeof message === "number" && message === GhostMsgEndGhosting) {
         this.ghostTracker.clear();
+        this.dataBlockDataMap?.clear();
       }
       return;
     }

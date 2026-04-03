@@ -12,6 +12,12 @@ export const MaxTriggerKeys = 6;
 export const MoveCountBits = 5;
 export const MaxMoveCount = 30;
 
+// GhostingMessageEvent message types (NetConnection::GhostMSG enum).
+export const GhostMsgGhostAlwaysDone = 0;
+export const GhostMsgGhostAlwaysAck = 1;
+export const GhostMsgEndGhosting = 2;
+export const GhostMsgGhostingActive = 3;
+
 // DataBlock constants.
 // For SimDataBlockEvent header (initial block + events), the binary uses:
 //   readInt(11) objectId, readInt(7) classId, readInt(11) index, readInt(12) total.
