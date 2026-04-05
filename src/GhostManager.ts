@@ -235,22 +235,22 @@ function readShapeBaseUpdate(
     }
   }
 
-  // ShapeBase post-image state cluster (FUN_005ef0e0 @ 0x005ef0e0).
-  // This section must preserve exact flag nesting for bit-accurate decode.
+  // CloakMask section (ShapeBase, binary-verified FUN_005ef0e0).
+  // Combined mask: ShieldMask | CloakMask | InvincibleMask (0x1c0).
   if (bs.readFlag()) {
-    const hasStateA = bs.readFlag();
-    if (hasStateA) {
-      const stateAEnabled = bs.readFlag();
-      result.stateAEnabled = stateAEnabled;
-      result.stateB = bs.readFlag();
-      const hasInvulnerability = bs.readFlag();
-      result.hasInvulnerability = hasInvulnerability;
+    // CloakMask sub-section.
+    const hasCloakData = bs.readFlag();
+    if (hasCloakData) {
+      result.cloaked = bs.readFlag(); // mCloaked (stealth pack active)
+      result.isControlled = bs.readFlag(); // bool(getControllingClient())
+      const fading = bs.readFlag(); // mFading && mFadeElapsedTime >= mFadeDelay
+      result.fading = fading;
 
-      if (hasInvulnerability) {
-        result.invulnerabilityVisual = bs.readFlag();
-        result.invulnerabilityTicks = bs.readU32();
+      if (fading) {
+        result.fadeOut = bs.readFlag(); // mFadeOut (true=fading out, false=fading in)
+        result.fadeTime = bs.readF32(); // mFadeTime (duration in seconds)
       } else {
-        result.binaryCloak = bs.readFlag();
+        result.fadeVal = bs.readFlag(); // mFadeVal == 1.0 (true=visible, false=hidden)
       }
     }
 

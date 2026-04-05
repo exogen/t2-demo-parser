@@ -497,3 +497,54 @@ describe("DemoParser data exposure", () => {
     }
   });
 });
+
+describe("CloakMask field names (binary-verified)", () => {
+  const demoFile = "exogen_Harvester.rec";
+  const skip = !demoExists(demoFile);
+
+  it("CloakMask uses correct field names and types", { skip, timeout: 60_000 }, async () => {
+    const { result } = await parseDemoFile(demoFile);
+
+    // Collect all ghost data with CloakMask fields across the full demo.
+    let withCloaked = 0;
+    let withFadeVal = 0;
+    let withFading = 0;
+    let withFadeTime = 0;
+
+    function checkGhosts(ghosts: { parsedData?: Record<string, unknown> }[]) {
+      for (const ghost of ghosts) {
+        const d = ghost.parsedData;
+        if (!d) continue;
+        // Old field names must be absent.
+        expect(d.stateAEnabled).toBeUndefined();
+        expect(d.stateB).toBeUndefined();
+        expect(d.hasInvulnerability).toBeUndefined();
+        expect(d.invulnerabilityVisual).toBeUndefined();
+        expect(d.invulnerabilityTicks).toBeUndefined();
+        expect(d.binaryCloak).toBeUndefined();
+
+        if (typeof d.cloaked === "boolean") withCloaked++;
+        if (typeof d.fadeVal === "boolean") withFadeVal++;
+        if (typeof d.fading === "boolean") withFading++;
+        if (typeof d.fadeTime === "number") {
+          withFadeTime++;
+          // fadeTime is F32 (seconds), not U32. A misread U32 would give
+          // values in the millions; valid fade durations are 0–few seconds.
+          expect(d.fadeTime as number).toBeGreaterThanOrEqual(0);
+          expect(d.fadeTime as number).toBeLessThan(60);
+        }
+      }
+    }
+
+    checkGhosts(result.initialBlock!.initialGhosts);
+    for (const block of result.blocks) {
+      if (block.type !== BlockTypePacket || !block.parsed) continue;
+      checkGhosts((block.parsed as PacketData).ghosts);
+    }
+
+    // Sanity: CloakMask data should appear in a real demo.
+    expect(withCloaked).toBeGreaterThan(0);
+    expect(withFadeVal).toBeGreaterThan(0);
+    expect(withFading).toBeGreaterThanOrEqual(0); // fading may not occur in every demo
+  });
+});
