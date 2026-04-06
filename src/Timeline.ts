@@ -6,24 +6,14 @@ import type {
   NetEventInfo,
 } from "./types.js";
 import { BlockTypePacket } from "./types.js";
-import type { ClassRegistry } from "./ClassRegistry.js";
+import type { ClassRegistry, ParsedData } from "./ClassRegistry.js";
+import type { Vec3, Quat } from "./dataTypes.js";
+
+export type { Vec3, Quat };
 
 // ============================================================
 // Timeline data structures for Three.js animation output
 // ============================================================
-
-export interface Vec3 {
-  x: number;
-  y: number;
-  z: number;
-}
-
-export interface Quat {
-  x: number;
-  y: number;
-  z: number;
-  w: number;
-}
 
 /** A single keyframe for a ghost object. */
 export interface GhostKeyframe {
@@ -31,7 +21,7 @@ export interface GhostKeyframe {
   position?: Vec3;
   rotation?: Quat | Vec3;
   velocity?: Vec3;
-  data?: Record<string, unknown>;
+  data?: ParsedData;
 }
 
 /** A continuous lifecycle segment of a ghost (from create to delete). */
@@ -50,7 +40,7 @@ export interface ControlObjectKeyframe {
   ghostIndex: number;
   position?: Vec3;
   velocity?: Vec3;
-  data?: Record<string, unknown>;
+  data?: ParsedData;
 }
 
 /** A timestamped game event. */
@@ -59,7 +49,7 @@ export interface GameEvent {
   type: string;
   classId: number;
   guaranteed: boolean;
-  data?: Record<string, unknown>;
+  data?: ParsedData;
 }
 
 /** Complete timeline extracted from a demo file. */
@@ -89,8 +79,12 @@ export function buildTimeline(
   const packetBlocks: { block: DemoBlock; pkt: PacketData }[] = [];
 
   for (const block of demo.blocks) {
-    if (block.type === BlockTypePacket && block.parsed && "dnetHeader" in block.parsed) {
-      packetBlocks.push({ block, pkt: block.parsed as PacketData });
+    if (
+      block.type === BlockTypePacket &&
+      block.parsed &&
+      "dnetHeader" in block.parsed
+    ) {
+      packetBlocks.push({ block, pkt: block.parsed });
     }
   }
 
@@ -130,21 +124,21 @@ export function buildTimeline(
 
     // --- Control object position ---
     if (pkt.gameState.compressionPoint || pkt.gameState.controlObjectData) {
-      const coData = pkt.gameState.controlObjectData as
-        | Record<string, unknown>
-        | undefined;
-      const rawPosition =
-        (coData?.position as Vec3 | undefined) ??
-        pkt.gameState.compressionPoint;
+      const coData = pkt.gameState.controlObjectData;
+      const coPos = coData?.position;
+      const rawPosition = isVec3(coPos)
+        ? coPos
+        : pkt.gameState.compressionPoint;
       const position =
         rawPosition && isValidPosition(rawPosition) ? rawPosition : undefined;
 
       if (position) {
+        const coVel = coData?.velocity;
         controlObject.push({
           time,
           ghostIndex: pkt.gameState.controlObjectGhostIndex ?? -1,
           position,
-          velocity: coData?.velocity as Vec3 | undefined,
+          velocity: isVec3(coVel) ? coVel : undefined,
           data: coData,
         });
       }
@@ -234,24 +228,32 @@ function isValidPosition(pos: Vec3): boolean {
   );
 }
 
+function isVec3(v: unknown): v is Vec3 {
+  if (v === null || typeof v !== "object") return false;
+  const o = v as ParsedData;
+  return (
+    typeof o.x === "number" &&
+    typeof o.y === "number" &&
+    typeof o.z === "number"
+  );
+}
+
 /** Extract position/rotation/velocity from parsed ghost data into a keyframe. */
 function makeGhostKeyframe(
   time: number,
-  data: Record<string, unknown>
+  data: ParsedData
 ): GhostKeyframe {
   const kf: GhostKeyframe = { time };
 
-  if (data.position) {
-    const pos = data.position as Vec3;
-    if (isValidPosition(pos)) {
-      kf.position = pos;
-    }
+  if (isVec3(data.position) && isValidPosition(data.position)) {
+    kf.position = data.position;
   }
-  if (data.rotation) {
-    kf.rotation = data.rotation as Quat | Vec3;
+  if (isVec3(data.rotation)) {
+    // Rotation may be Vec3 (euler) or Quat (with w).
+    kf.rotation = data.rotation;
   }
-  if (data.velocity) {
-    kf.velocity = data.velocity as Vec3;
+  if (isVec3(data.velocity)) {
+    kf.velocity = data.velocity;
   }
 
   // Store full data for consumers that need more detail
@@ -380,9 +382,9 @@ export function exportTimeline(timeline: DemoTimeline): ExportTimeline {
       if (kf.position)
         ekf.p = [kf.position.x, kf.position.y, kf.position.z];
       if (kf.rotation) {
-        const r = kf.rotation as any;
+        const r = kf.rotation;
         ekf.r =
-          r.w !== undefined
+          "w" in r
             ? [r.x, r.y, r.z, r.w]
             : [r.x, r.y, r.z];
       }

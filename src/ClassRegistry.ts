@@ -1,33 +1,40 @@
 import type { BitStream } from "./BitStream.js";
+import type { EventData } from "./eventDataTypes.js";
+
+/**
+ * Base type for all parsed data objects. Individual parsers return more
+ * specific interfaces, but the registry stores them generically.
+ */
+export type ParsedData = { [key: string]: unknown };
 
 // --- Parser function signatures ---
 
 export type EventParser = (
   bs: BitStream,
   conn: ConnectionContext
-) => Record<string, unknown>;
+) => EventData;
 
 export type GhostUpdateParser = (
   bs: BitStream,
   isInitial: boolean,
   conn: ConnectionContext
-) => Record<string, unknown>;
+) => ParsedData;
 
 export type GhostPacketDataParser = (
   bs: BitStream,
   conn: ConnectionContext
-) => Record<string, unknown>;
+) => ParsedData;
 
 export type DataBlockParser = (
   bs: BitStream
-) => Record<string, unknown>;
+) => ParsedData;
 
 /** Shared context passed to parsers from the connection state. */
 export interface ConnectionContext {
   compressionPoint: { x: number; y: number; z: number };
   ghostTracker: GhostTrackerInterface;
   getDataBlockParser?: (classId: number) => DataBlockParserEntry | undefined;
-  getDataBlockData?: (objectId: number) => Record<string, unknown> | undefined;
+  getDataBlockData?: (objectId: number) => ParsedData | undefined;
   getGhostParser?: (classId: number) => GhostParserEntry | undefined;
   /** Ghost index of the ghost currently being parsed (set per-ghost in readGhosts). */
   currentGhostIndex?: number;
@@ -41,7 +48,7 @@ export interface GhostTrackerInterface {
 export interface GhostEntry {
   classId: number;
   className: string;
-  state: Record<string, unknown>;
+  state: ParsedData;
 }
 
 export interface GhostParserEntry {

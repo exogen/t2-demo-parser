@@ -1,5 +1,65 @@
 import type { BitStream } from "./BitStream.js";
 import type { ClassRegistry } from "./ClassRegistry.js";
+import type {
+  SimDataBlock,
+  GameBaseDataBlock,
+  ShapeBaseDataBlock,
+  ShapeBaseImageDataBlock,
+  PlayerDataBlock,
+  VehicleDataBlock,
+  FlyingVehicleDataBlock,
+  HoverVehicleDataBlock,
+  WheeledVehicleDataBlock,
+  StaticShapeDataBlock,
+  TurretDataBlock,
+  TurretImageDataBlock,
+  ItemDataBlock,
+  ProjectileDataBlock,
+  LinearProjectileDataBlock,
+  GrenadeProjectileDataBlock,
+  SeekerProjectileDataBlock,
+  SniperProjectileDataBlock,
+  ShockLanceProjectileDataBlock,
+  ELFProjectileDataBlock,
+  RepairProjectileDataBlock,
+  TargetProjectileDataBlock,
+  TracerProjectileDataBlock,
+  EnergyProjectileDataBlock,
+  LinearFlareProjectileDataBlock,
+  BombProjectileDataBlock,
+  FlareProjectileDataBlock,
+  ExplosionDataBlock,
+  DebrisDataBlock,
+  SplashDataBlock,
+  ShockwaveDataBlock,
+  ParticleEmitterDataBlock,
+  ParticleDataBlock,
+  AudioDescriptionDataBlock,
+  AudioProfileDataBlock,
+  AudioEnvironmentDataBlock,
+  AudioSampleEnvironmentDataBlock,
+  DecalDataBlock,
+  CameraDataBlock,
+  SensorDataBlock,
+  TriggerDataBlock,
+  ForceFieldBareDataBlock,
+  ParticleEmissionDummyDataBlock,
+  CommanderIconDataBlock,
+  PrecipitationDataBlock,
+  FireballAtmosphereDataBlock,
+  LightningDataBlock,
+  StationFXVehicleDataBlock,
+  StationFXPersonalDataBlock,
+  CannedChatItemDataBlock,
+  MissionMarkerDataBlock,
+  TSShapeConstructorDataBlock,
+  EffectProfileDataBlock,
+  JetEffectDataBlock,
+  RunningLightDataBlock,
+  HudImageEntry,
+  ImageState,
+  ParticleKey,
+} from "./dataBlockDataTypes.js";
 
 // ============================================================
 // Helper functions
@@ -75,8 +135,8 @@ function readRangedF32(
  * The Tribes 2 binary groups booleans and DataBlock refs differently,
  * and the sensor color uses 4×U8 (not 4×F32), among other differences.
  */
-function shapeBaseDataUnpack(bs: BitStream): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
+function shapeBaseDataUnpack(bs: BitStream): ShapeBaseDataBlock {
+  const result: ShapeBaseDataBlock = {};
 
   // computeCRC — flag; if true: U32 mCRC
   // Binary: readFlag → this+0xc0; if true: read(4) → this+0xbc
@@ -165,21 +225,22 @@ function shapeBaseDataUnpack(bs: BitStream): Record<string, unknown> {
 
   // HUD images loop (8 iterations, NumHudRenderImages=8)
   // Binary: do-while uVar4 < 8 at offset this + uVar4*4 + 0x174
-  const hudImages: Record<string, unknown>[] = [];
+  const hudImages: HudImageEntry[] = [];
   for (let i = 0; i < 8; i++) {
     const hasFriendly = bs.readFlag();
     if (!hasFriendly) continue;
-    const img: Record<string, unknown> = {};
-    img.friendlyName = bs.readString();       // → this + i*4 + 0x174
+    const friendlyName = bs.readString();       // → this + i*4 + 0x174
     const hasEnemy = bs.readFlag();
-    if (hasEnemy) {
-      img.enemyName = bs.readString();        // → this + i*4 + 0x194
-    }
-    img.renderCenter = bs.readFlag();          // → this + i + 0x1f4
-    img.renderModulated = bs.readFlag();       // → this + i + 0x1fc
-    img.renderAlways = bs.readFlag();          // → this + i + 0x204
-    img.renderDistance = bs.readFlag();         // → this + i + 0x20c
-    img.renderName = bs.readFlag();            // → this + i + 0x214
+    const enemyName = hasEnemy ? bs.readString() : undefined; // → this + i*4 + 0x194
+    const img: HudImageEntry = {
+      friendlyName,
+      enemyName,
+      renderCenter: bs.readFlag(),          // → this + i + 0x1f4
+      renderModulated: bs.readFlag(),       // → this + i + 0x1fc
+      renderAlways: bs.readFlag(),          // → this + i + 0x204
+      renderDistance: bs.readFlag(),         // → this + i + 0x20c
+      renderName: bs.readFlag(),            // → this + i + 0x214
+    };
     hudImages.push(img);
   }
   if (hudImages.length > 0) result.hudImages = hudImages;
@@ -191,9 +252,9 @@ function shapeBaseDataUnpack(bs: BitStream): Record<string, unknown> {
 // ShapeBaseImageData (weapon mount data — 31 states)
 // ============================================================
 
-function shapeBaseImageDataUnpack(bs: BitStream): Record<string, unknown> {
+function shapeBaseImageDataUnpack(bs: BitStream): ShapeBaseImageDataBlock {
   // Extends GameBaseData directly (0 parent bits)
-  const result: Record<string, unknown> = {};
+  const result: ShapeBaseImageDataBlock = {};
 
   // computeCRC — flag; if true: U32
   if (bs.readFlag()) {
@@ -279,66 +340,96 @@ function shapeBaseImageDataUnpack(bs: BitStream): Record<string, unknown> {
   result.accuFire = bs.readFlag();
 
   // State loop (31 iterations, MaxStates=31)
-  const states: Record<string, unknown>[] = [];
+  const states: ImageState[] = [];
   for (let i = 0; i < 31; i++) {
     const hasName = bs.readFlag();
     if (!hasName) continue;
 
-    const state: Record<string, unknown> = {};
-    state.name = bs.readString();
+    const name = bs.readString();
 
     // 11 transition values: each readInt(5)
-    state.transitionOnAmmo = bs.readInt(5);
-    state.transitionOnNoAmmo = bs.readInt(5);
-    state.transitionOnTarget = bs.readInt(5);
-    state.transitionOnNoTarget = bs.readInt(5);
-    state.transitionOnWet = bs.readInt(5);
-    state.transitionOnNotWet = bs.readInt(5);
-    state.transitionOnTriggerUp = bs.readInt(5);
-    state.transitionOnTriggerDown = bs.readInt(5);
-    state.transitionOnTimeout = bs.readInt(5);
-    state.transitionGeneric0In = bs.readInt(5);
-    state.transitionGeneric0Out = bs.readInt(5);
+    const transitionOnAmmo = bs.readInt(5);
+    const transitionOnNoAmmo = bs.readInt(5);
+    const transitionOnTarget = bs.readInt(5);
+    const transitionOnNoTarget = bs.readInt(5);
+    const transitionOnWet = bs.readInt(5);
+    const transitionOnNotWet = bs.readInt(5);
+    const transitionOnTriggerUp = bs.readInt(5);
+    const transitionOnTriggerDown = bs.readInt(5);
+    const transitionOnTimeout = bs.readInt(5);
+    const transitionGeneric0In = bs.readInt(5);
+    const transitionGeneric0Out = bs.readInt(5);
 
     // timeoutValue — flag(!=default) then F32
-    if (bs.readFlag()) state.timeoutValue = bs.readF32();
+    const timeoutValue = bs.readFlag() ? bs.readF32() : undefined;
     // waitForTimeout — flag
-    state.waitForTimeout = bs.readFlag();
+    const waitForTimeout = bs.readFlag();
     // fire — flag
-    state.fire = bs.readFlag();
+    const fire = bs.readFlag();
     // ejectShell — flag
-    state.ejectShell = bs.readFlag();
+    const ejectShell = bs.readFlag();
     // scaleAnimation — flag
-    state.scaleAnimation = bs.readFlag();
+    const scaleAnimation = bs.readFlag();
     // direction — flag
-    state.direction = bs.readFlag();
+    const direction = bs.readFlag();
     // reload — flag (confirmed at offset 0xe2a in binary, between direction and energyDrain)
-    state.reload = bs.readFlag();
+    const reload = bs.readFlag();
     // energyDrain — flag(!=default) then F32
-    if (bs.readFlag()) state.energyDrain = bs.readF32();
+    const energyDrain = bs.readFlag() ? bs.readF32() : undefined;
     // loaded — readInt(3)
-    state.loaded = bs.readInt(3);
+    const loaded = bs.readInt(3);
     // spin — readInt(3)
-    state.spin = bs.readInt(3);
+    const spin = bs.readInt(3);
     // recoil — readInt(3)
-    state.recoil = bs.readInt(3);
+    const recoil = bs.readInt(3);
     // sequence — flag(!=default) then readSignedInt(16)
-    if (bs.readFlag()) state.sequence = bs.readSignedInt(16);
+    const sequence = bs.readFlag() ? bs.readSignedInt(16) : undefined;
     // sequenceVis — flag(!=default) then readSignedInt(16)
-    if (bs.readFlag()) state.sequenceVis = bs.readSignedInt(16);
+    const sequenceVis = bs.readFlag() ? bs.readSignedInt(16) : undefined;
     // flashSequence — flag
-    state.flashSequence = bs.readFlag();
+    const flashSequence = bs.readFlag();
     // ignoreLoadedForReady — flag
-    state.ignoreLoadedForReady = bs.readFlag();
+    const ignoreLoadedForReady = bs.readFlag();
     // emitter — readDataBlockRef; if present: F32 + S32
-    state.emitter = readDataBlockRef(bs);
-    if (state.emitter !== null) {
-      state.emitterTime = bs.readF32();
-      state.emitterNode = bs.readS32();
-    }
+    const emitter = readDataBlockRef(bs);
+    const emitterTime = emitter !== null ? bs.readF32() : undefined;
+    const emitterNode = emitter !== null ? bs.readS32() : undefined;
     // sound — readDataBlockRef
-    state.sound = readDataBlockRef(bs);
+    const sound = readDataBlockRef(bs);
 
+    const state: ImageState = {
+      name,
+      transitionOnAmmo,
+      transitionOnNoAmmo,
+      transitionOnTarget,
+      transitionOnNoTarget,
+      transitionOnWet,
+      transitionOnNotWet,
+      transitionOnTriggerUp,
+      transitionOnTriggerDown,
+      transitionOnTimeout,
+      transitionGeneric0In,
+      transitionGeneric0Out,
+      timeoutValue,
+      waitForTimeout,
+      fire,
+      ejectShell,
+      scaleAnimation,
+      direction,
+      reload,
+      energyDrain,
+      loaded,
+      spin,
+      recoil,
+      sequence,
+      sequenceVis,
+      flashSequence,
+      ignoreLoadedForReady,
+      emitter,
+      emitterTime,
+      emitterNode,
+      sound,
+    };
     states.push(state);
   }
   result.states = states;
@@ -350,8 +441,8 @@ function shapeBaseImageDataUnpack(bs: BitStream): Record<string, unknown> {
 // PlayerData (extends ShapeBaseData)
 // ============================================================
 
-function playerDataUnpack(bs: BitStream): Record<string, unknown> {
-  const result = shapeBaseDataUnpack(bs);
+function playerDataUnpack(bs: BitStream): PlayerDataBlock {
+  const result: PlayerDataBlock = shapeBaseDataUnpack(bs);
 
   // Verified against decompiled binary FUN_005cfa40 (Tribes2.exe).
   // Binary layout: flag + 13 F32s + 2 optional DB refs + 9 F32s + 1 F32 +
@@ -496,8 +587,8 @@ function playerDataUnpack(bs: BitStream): Record<string, unknown> {
 // VehicleData (extends ShapeBaseData)
 // ============================================================
 
-function vehicleDataUnpack(bs: BitStream): Record<string, unknown> {
-  const result = shapeBaseDataUnpack(bs);
+function vehicleDataUnpack(bs: BitStream): VehicleDataBlock {
+  const result: VehicleDataBlock = shapeBaseDataUnpack(bs);
 
   // Verified against decompiled binary FUN_00609450 (Tribes2.exe).
 
@@ -520,14 +611,14 @@ function vehicleDataUnpack(bs: BitStream): Record<string, unknown> {
   result.maxSteeringAngle = bs.readF32();         // 0x38c
   result.maxDrag = bs.readF32();                  // 0x3a4
   result.minDrag = bs.readF32();                  // 0x3a0
-  result.cameraOffset = bs.readF32();             // 0x3a8
-  result.cameraLag = bs.readF32();                // 0x3ac
-  result.jetForce = bs.readF32();                 // 0x3b0
-  result.jetEnergyDrain = bs.readF32();           // 0x39c
-  result.minJetEnergy = bs.readF32();             // 0x398
-  result.integration = bs.readF32();              // 0x3c8
-  result.collisionTol = bs.readF32();             // 0x3cc
-  result.massCenter = bs.readF32();               // 0x408
+  result.jetForce = bs.readF32();                 // 0x3a8
+  result.jetEnergyDrain = bs.readF32();           // 0x3ac
+  result.minJetEnergy = bs.readF32();             // 0x3b0
+  result.cameraOffset = bs.readF32();             // 0x39c
+  result.cameraLag = bs.readF32();                // 0x398
+  result.triggerDustHeight = bs.readF32();         // 0x3c8
+  result.dustHeight = bs.readF32();               // 0x3cc
+  result.numDmgEmitterAreas = bs.readF32();       // 0x408
   result.exitSplashSoundVelocity = bs.readF32();  // 0x36c
   result.softSplashSoundVelocity = bs.readF32();  // 0x370
   result.mediumSplashSoundVelocity = bs.readF32(); // 0x374
@@ -588,8 +679,8 @@ function vehicleDataUnpack(bs: BitStream): Record<string, unknown> {
 // FlyingVehicleData (extends VehicleData)
 // ============================================================
 
-function flyingVehicleDataUnpack(bs: BitStream): Record<string, unknown> {
-  const result = vehicleDataUnpack(bs);
+function flyingVehicleDataUnpack(bs: BitStream): FlyingVehicleDataBlock {
+  const result: FlyingVehicleDataBlock = vehicleDataUnpack(bs);
 
   // 2 sound refs
   result.jetActivateSound = readDataBlockRef(bs);
@@ -627,8 +718,8 @@ function flyingVehicleDataUnpack(bs: BitStream): Record<string, unknown> {
 // HoverVehicleData (extends VehicleData)
 // ============================================================
 
-function hoverVehicleDataUnpack(bs: BitStream): Record<string, unknown> {
-  const result = vehicleDataUnpack(bs);
+function hoverVehicleDataUnpack(bs: BitStream): HoverVehicleDataBlock {
+  const result: HoverVehicleDataBlock = vehicleDataUnpack(bs);
 
   // 17 F32s
   result.dragForce = bs.readF32();
@@ -687,8 +778,8 @@ function hoverVehicleDataUnpack(bs: BitStream): Record<string, unknown> {
 // WheeledVehicleData (extends VehicleData)
 // ============================================================
 
-function wheeledVehicleDataUnpack(bs: BitStream): Record<string, unknown> {
-  const result = vehicleDataUnpack(bs);
+function wheeledVehicleDataUnpack(bs: BitStream): WheeledVehicleDataBlock {
+  const result: WheeledVehicleDataBlock = vehicleDataUnpack(bs);
 
   // 9 tire F32s
   result.tireRadius = bs.readF32();
@@ -730,8 +821,8 @@ function wheeledVehicleDataUnpack(bs: BitStream): Record<string, unknown> {
 // StaticShapeData (extends ShapeBaseData)
 // ============================================================
 
-function staticShapeDataUnpack(bs: BitStream): Record<string, unknown> {
-  const result = shapeBaseDataUnpack(bs);
+function staticShapeDataUnpack(bs: BitStream): StaticShapeDataBlock {
+  const result: StaticShapeDataBlock = shapeBaseDataUnpack(bs);
   result.noIndividualDamage = bs.readFlag();
   result.dynamicTypeField = bs.readS32();
   return result;
@@ -741,8 +832,8 @@ function staticShapeDataUnpack(bs: BitStream): Record<string, unknown> {
 // TurretData (extends StaticShapeData)
 // ============================================================
 
-function turretDataUnpack(bs: BitStream): Record<string, unknown> {
-  const result = staticShapeDataUnpack(bs);
+function turretDataUnpack(bs: BitStream): TurretDataBlock {
+  const result: TurretDataBlock = staticShapeDataUnpack(bs);
   // Verified against decompiled binary FUN_00654190
   result.thetaMin = bs.readF32(); // 0x33c
   result.thetaMax = bs.readF32(); // 0x340
@@ -758,8 +849,8 @@ function turretDataUnpack(bs: BitStream): Record<string, unknown> {
 // TurretImageData (extends ShapeBaseImageData)
 // ============================================================
 
-function turretImageDataUnpack(bs: BitStream): Record<string, unknown> {
-  const result = shapeBaseImageDataUnpack(bs);
+function turretImageDataUnpack(bs: BitStream): TurretImageDataBlock {
+  const result: TurretImageDataBlock = shapeBaseImageDataUnpack(bs);
   // Verified against decompiled binary FUN_00654850
   result.activationMS = bs.readInt(8); // << 5 on store (0x1c04)
   result.deactivateDelayMS = bs.readInt(8); // << 5 on store (0x1c08)
@@ -775,8 +866,8 @@ function turretImageDataUnpack(bs: BitStream): Record<string, unknown> {
 // ItemData (extends ShapeBaseData)
 // ============================================================
 
-function itemDataUnpack(bs: BitStream): Record<string, unknown> {
-  const result = shapeBaseDataUnpack(bs);
+function itemDataUnpack(bs: BitStream): ItemDataBlock {
+  const result: ItemDataBlock = shapeBaseDataUnpack(bs);
 
   // 2×readFloat(10)
   result.friction = bs.readFloat(10);
@@ -812,8 +903,8 @@ function itemDataUnpack(bs: BitStream): Record<string, unknown> {
 // ProjectileData (extends GameBaseData — 0 parent bits)
 // ============================================================
 
-function projectileDataUnpack(bs: BitStream): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
+function projectileDataUnpack(bs: BitStream): ProjectileDataBlock {
+  const result: ProjectileDataBlock = {};
 
   // readString (projectileName)
   result.projectileShapeName = bs.readString();
@@ -885,8 +976,8 @@ function projectileDataUnpack(bs: BitStream): Record<string, unknown> {
 // LinearProjectileData (extends ProjectileData)
 // ============================================================
 
-function linearProjectileDataUnpack(bs: BitStream): Record<string, unknown> {
-  const result = projectileDataUnpack(bs);
+function linearProjectileDataUnpack(bs: BitStream): LinearProjectileDataBlock {
+  const result: LinearProjectileDataBlock = projectileDataUnpack(bs);
 
   // 2×F32
   result.dryVelocity = bs.readF32();
@@ -917,8 +1008,8 @@ function linearProjectileDataUnpack(bs: BitStream): Record<string, unknown> {
 // GrenadeProjectileData (extends ProjectileData)
 // ============================================================
 
-function grenadeProjectileDataUnpack(bs: BitStream): Record<string, unknown> {
-  const result = projectileDataUnpack(bs);
+function grenadeProjectileDataUnpack(bs: BitStream): GrenadeProjectileDataBlock {
+  const result: GrenadeProjectileDataBlock = projectileDataUnpack(bs);
 
   result.armingDelayMS = bs.readS32();
   result.muzzleVelocity = bs.readF32();
@@ -936,8 +1027,8 @@ function grenadeProjectileDataUnpack(bs: BitStream): Record<string, unknown> {
 // SeekerProjectileData (extends ProjectileData)
 // ============================================================
 
-function seekerProjectileDataUnpack(bs: BitStream): Record<string, unknown> {
-  const result = projectileDataUnpack(bs);
+function seekerProjectileDataUnpack(bs: BitStream): SeekerProjectileDataBlock {
+  const result: SeekerProjectileDataBlock = projectileDataUnpack(bs);
 
   // Verified against decompiled binary (lines 430494-430580)
   // 10 F32/S32 (offsets 0x138-0x164)
@@ -980,8 +1071,8 @@ function seekerProjectileDataUnpack(bs: BitStream): Record<string, unknown> {
 // SniperProjectileData (extends ProjectileData)
 // ============================================================
 
-function sniperProjectileDataUnpack(bs: BitStream): Record<string, unknown> {
-  const result = projectileDataUnpack(bs);
+function sniperProjectileDataUnpack(bs: BitStream): SniperProjectileDataBlock {
+  const result: SniperProjectileDataBlock = projectileDataUnpack(bs);
 
   // Verified against decompiled binary FUN_00641d40
   // 2×F32 (offsets 0x138, 0x13c)
@@ -1024,9 +1115,9 @@ function sniperProjectileDataUnpack(bs: BitStream): Record<string, unknown> {
 
 function shockLanceProjectileDataUnpack(
   bs: BitStream
-): Record<string, unknown> {
+): ShockLanceProjectileDataBlock {
   // Verified against decompiled binary FUN_0064e840
-  const result = projectileDataUnpack(bs);
+  const result: ShockLanceProjectileDataBlock = projectileDataUnpack(bs);
 
   // 7 F32 (offsets 0x138, 0x13c, 0x160, 0x164, 0x168, 0x16c, 0x170)
   result.zapDuration = bs.readF32();
@@ -1074,8 +1165,8 @@ function shockLanceProjectileDataUnpack(
 // ELFProjectileData (extends ProjectileData)
 // ============================================================
 
-function elfProjectileDataUnpack(bs: BitStream): Record<string, unknown> {
-  const result = projectileDataUnpack(bs);
+function elfProjectileDataUnpack(bs: BitStream): ELFProjectileDataBlock {
+  const result: ELFProjectileDataBlock = projectileDataUnpack(bs);
 
   // 6×F32
   result.beamRange = bs.readF32();
@@ -1100,8 +1191,8 @@ function elfProjectileDataUnpack(bs: BitStream): Record<string, unknown> {
 // RepairProjectileData (extends ProjectileData)
 // ============================================================
 
-function repairProjectileDataUnpack(bs: BitStream): Record<string, unknown> {
-  const result = projectileDataUnpack(bs);
+function repairProjectileDataUnpack(bs: BitStream): RepairProjectileDataBlock {
+  const result: RepairProjectileDataBlock = projectileDataUnpack(bs);
 
   // 8×F32
   result.beamRange = bs.readF32();
@@ -1124,8 +1215,8 @@ function repairProjectileDataUnpack(bs: BitStream): Record<string, unknown> {
 // TargetProjectileData (extends ProjectileData)
 // ============================================================
 
-function targetProjectileDataUnpack(bs: BitStream): Record<string, unknown> {
-  const result = projectileDataUnpack(bs);
+function targetProjectileDataUnpack(bs: BitStream): TargetProjectileDataBlock {
+  const result: TargetProjectileDataBlock = projectileDataUnpack(bs);
 
   // Verified against decompiled binary FUN_006477f0
   // F32 (offset 0x138)
@@ -1157,9 +1248,9 @@ function targetProjectileDataUnpack(bs: BitStream): Record<string, unknown> {
 // TracerProjectileData (extends LinearProjectileData)
 // ============================================================
 
-function tracerProjectileDataUnpack(bs: BitStream): Record<string, unknown> {
+function tracerProjectileDataUnpack(bs: BitStream): TracerProjectileDataBlock {
   // Verified against decompiled binary FUN_00640160
-  const result = linearProjectileDataUnpack(bs);
+  const result: TracerProjectileDataBlock = linearProjectileDataUnpack(bs);
 
   // 3 F32 (offsets 0x168, 0x184, 0x170)
   result.tracerLength = bs.readF32();
@@ -1190,9 +1281,9 @@ function tracerProjectileDataUnpack(bs: BitStream): Record<string, unknown> {
 // EnergyProjectileData (extends GrenadeProjectileData)
 // ============================================================
 
-function energyProjectileDataUnpack(bs: BitStream): Record<string, unknown> {
+function energyProjectileDataUnpack(bs: BitStream): EnergyProjectileDataBlock {
   // Verified against decompiled binary FUN_00694d80 — parent is FUN_00633cf0 (GrenadeProjectileData)
-  const result = grenadeProjectileDataUnpack(bs);
+  const result: EnergyProjectileDataBlock = grenadeProjectileDataUnpack(bs);
 
   // 7×F32
   result.energyDrainPerSecond = bs.readF32();
@@ -1216,9 +1307,9 @@ function energyProjectileDataUnpack(bs: BitStream): Record<string, unknown> {
 
 function linearFlareProjectileDataUnpack(
   bs: BitStream
-): Record<string, unknown> {
+): LinearFlareProjectileDataBlock {
   // Verified against decompiled binary FUN_0063dc80
-  const result = linearProjectileDataUnpack(bs);
+  const result: LinearFlareProjectileDataBlock = linearProjectileDataUnpack(bs);
 
   // F32 (offset 0x168)
   result.numFlares = bs.readF32();
@@ -1242,8 +1333,8 @@ function linearFlareProjectileDataUnpack(
 // BombProjectileData (extends GrenadeProjectileData)
 // ============================================================
 
-function bombProjectileDataUnpack(bs: BitStream): Record<string, unknown> {
-  const result = grenadeProjectileDataUnpack(bs);
+function bombProjectileDataUnpack(bs: BitStream): BombProjectileDataBlock {
+  const result: BombProjectileDataBlock = grenadeProjectileDataUnpack(bs);
 
   // 6×F32
   result.smokeDist = bs.readF32();
@@ -1264,9 +1355,9 @@ function bombProjectileDataUnpack(bs: BitStream): Record<string, unknown> {
 // FlareProjectileData (extends GrenadeProjectileData)
 // ============================================================
 
-function flareProjectileDataUnpack(bs: BitStream): Record<string, unknown> {
+function flareProjectileDataUnpack(bs: BitStream): FlareProjectileDataBlock {
   // Verified against decompiled binary FUN_006872f0
-  const result = grenadeProjectileDataUnpack(bs);
+  const result: FlareProjectileDataBlock = grenadeProjectileDataUnpack(bs);
 
   // F32 (offset 0x158)
   result.size = bs.readF32();
@@ -1285,8 +1376,8 @@ function flareProjectileDataUnpack(bs: BitStream): Record<string, unknown> {
 // ExplosionData (extends GameBaseData)
 // ============================================================
 
-function explosionDataUnpack(bs: BitStream): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
+function explosionDataUnpack(bs: BitStream): ExplosionDataBlock {
+  const result: ExplosionDataBlock = {};
 
   // readString
   result.dtsFileName = bs.readString();
@@ -1382,9 +1473,9 @@ function explosionDataUnpack(bs: BitStream): Record<string, unknown> {
 // DebrisData (extends GameBaseData)
 // ============================================================
 
-function debrisDataUnpack(bs: BitStream): Record<string, unknown> {
+function debrisDataUnpack(bs: BitStream): DebrisDataBlock {
   // Field order confirmed from decompiled binary FUN_006844d0
-  const result: Record<string, unknown> = {};
+  const result: DebrisDataBlock = {};
 
   result.elasticity = bs.readF32(); // 0x50
   result.friction = bs.readF32(); // 0x4c
@@ -1435,8 +1526,8 @@ function debrisDataUnpack(bs: BitStream): Record<string, unknown> {
 // SplashData (extends GameBaseData)
 // ============================================================
 
-function splashDataUnpack(bs: BitStream): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
+function splashDataUnpack(bs: BitStream): SplashDataBlock {
+  const result: SplashDataBlock = {};
 
   // 3×F32 (scale)
   result.scale = {
@@ -1495,8 +1586,8 @@ function splashDataUnpack(bs: BitStream): Record<string, unknown> {
 // ShockwaveData (extends GameBaseData)
 // ============================================================
 
-function shockwaveDataUnpack(bs: BitStream): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
+function shockwaveDataUnpack(bs: BitStream): ShockwaveDataBlock {
+  const result: ShockwaveDataBlock = {};
 
   // 3×F32 (scale)
   result.scale = {
@@ -1558,8 +1649,8 @@ function shockwaveDataUnpack(bs: BitStream): Record<string, unknown> {
 // ParticleEmitterData (extends GameBaseData)
 // ============================================================
 
-function particleEmitterDataUnpack(bs: BitStream): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
+function particleEmitterDataUnpack(bs: BitStream): ParticleEmitterDataBlock {
+  const result: ParticleEmitterDataBlock = {};
 
   // 4 readInt(various)
   result.ejectionPeriodMS = bs.readInt(10);
@@ -1611,8 +1702,8 @@ function particleEmitterDataUnpack(bs: BitStream): Record<string, unknown> {
 // ParticleData (extends GameBaseData)
 // ============================================================
 
-function particleDataUnpack(bs: BitStream): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
+function particleDataUnpack(bs: BitStream): ParticleDataBlock {
+  const result: ParticleDataBlock = {};
 
   // readFloat(10) + flag then F32
   result.dragCoefficient = bs.readFloat(10);
@@ -1646,7 +1737,7 @@ function particleDataUnpack(bs: BitStream): Record<string, unknown> {
 
   // readInt(2) count(+1); per key: 4×readFloat(7) + readFloat(14) + readFloat(8)
   const numKeys = bs.readInt(2) + 1;
-  const keys: Record<string, unknown>[] = [];
+  const keys: ParticleKey[] = [];
   for (let i = 0; i < numKeys; i++) {
     keys.push({
       r: bs.readFloat(7),
@@ -1674,8 +1765,8 @@ function particleDataUnpack(bs: BitStream): Record<string, unknown> {
 // AudioDescription (extends SimDataBlock — 0 parent bits)
 // ============================================================
 
-function audioDescriptionUnpack(bs: BitStream): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
+function audioDescriptionUnpack(bs: BitStream): AudioDescriptionDataBlock {
+  const result: AudioDescriptionDataBlock = {};
 
   // readFloat(6)
   result.volume = bs.readFloat(6);
@@ -1712,8 +1803,8 @@ function audioDescriptionUnpack(bs: BitStream): Record<string, unknown> {
 // AudioProfile (extends SimDataBlock — 0 parent bits)
 // ============================================================
 
-function audioProfileUnpack(bs: BitStream): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
+function audioProfileUnpack(bs: BitStream): AudioProfileDataBlock {
+  const result: AudioProfileDataBlock = {};
 
   // Verified: decompiled FUN_0040c7f0 reads 3 DataBlock refs + 1 string.
   // Offsets: 0x48 (description), 0x4c (effect/environment), 0x50 (sampleEnvironment)
@@ -1731,9 +1822,9 @@ function audioProfileUnpack(bs: BitStream): Record<string, unknown> {
 // AudioEnvironment (extends SimDataBlock — 0 parent bits)
 // ============================================================
 
-function audioEnvironmentUnpack(bs: BitStream): Record<string, unknown> {
+function audioEnvironmentUnpack(bs: BitStream): AudioEnvironmentDataBlock {
   // Verified against decompiled binary FUN_0040b530
-  const result: Record<string, unknown> = {};
+  const result: AudioEnvironmentDataBlock = {};
 
   // flag(useRoom) → offset 0x3c
   result.useRoom = bs.readFlag();
@@ -1769,8 +1860,8 @@ function audioEnvironmentUnpack(bs: BitStream): Record<string, unknown> {
 // AudioSampleEnvironment (extends SimDataBlock — 0 parent bits)
 // ============================================================
 
-function audioSampleEnvironmentUnpack(bs: BitStream): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
+function audioSampleEnvironmentUnpack(bs: BitStream): AudioSampleEnvironmentDataBlock {
+  const result: AudioSampleEnvironmentDataBlock = {};
 
   // Series of rangedS32 and rangedF32 values + readInt(3)
   result.direct = readRangedS32(bs, -10000, 1000);
@@ -1794,7 +1885,7 @@ function audioSampleEnvironmentUnpack(bs: BitStream): Record<string, unknown> {
 // DecalData (extends SimDataBlock — 0 parent bits)
 // ============================================================
 
-function decalDataUnpack(bs: BitStream): Record<string, unknown> {
+function decalDataUnpack(bs: BitStream): DecalDataBlock {
   return {
     sizeX: bs.readF32(),
     sizeY: bs.readF32(),
@@ -1806,7 +1897,7 @@ function decalDataUnpack(bs: BitStream): Record<string, unknown> {
 // CameraData (extends ShapeBaseData) — no additional fields
 // ============================================================
 
-function cameraDataUnpack(bs: BitStream): Record<string, unknown> {
+function cameraDataUnpack(bs: BitStream): CameraDataBlock {
   return shapeBaseDataUnpack(bs);
 }
 
@@ -1814,7 +1905,7 @@ function cameraDataUnpack(bs: BitStream): Record<string, unknown> {
 // SensorData — empty body
 // ============================================================
 
-function sensorDataUnpack(_bs: BitStream): Record<string, unknown> {
+function sensorDataUnpack(_bs: BitStream): SensorDataBlock {
   return {};
 }
 
@@ -1822,7 +1913,7 @@ function sensorDataUnpack(_bs: BitStream): Record<string, unknown> {
 // TriggerData — S32(tickPeriodMS)
 // ============================================================
 
-function triggerDataUnpack(bs: BitStream): Record<string, unknown> {
+function triggerDataUnpack(bs: BitStream): TriggerDataBlock {
   return { tickPeriodMS: bs.readS32() };
 }
 
@@ -1830,9 +1921,9 @@ function triggerDataUnpack(bs: BitStream): Record<string, unknown> {
 // ForceFieldBareData
 // ============================================================
 
-function forceFieldBareDataUnpack(bs: BitStream): Record<string, unknown> {
+function forceFieldBareDataUnpack(bs: BitStream): ForceFieldBareDataBlock {
   // Verified against decompiled binary FUN_00675580
-  const result: Record<string, unknown> = {};
+  const result: ForceFieldBareDataBlock = {};
 
   // 3 S32/F32 (offsets 0x44, 0x48, 0x4c)
   result.fadeMS = bs.readS32();
@@ -1871,7 +1962,7 @@ function forceFieldBareDataUnpack(bs: BitStream): Record<string, unknown> {
 
 function particleEmissionDummyDataUnpack(
   bs: BitStream
-): Record<string, unknown> {
+): ParticleEmissionDummyDataBlock {
   return { timeMultiple: bs.readF32() };
 }
 
@@ -1879,28 +1970,23 @@ function particleEmissionDummyDataUnpack(
 // CommanderIconData — 5 readString (NumImages=5)
 // ============================================================
 
-function commanderIconDataUnpack(bs: BitStream): Record<string, unknown> {
-  const names = [
-    "baseImage",
-    "activeImage",
-    "inactiveImage",
-    "selectImage",
-    "hilightImage",
-  ];
-  const result: Record<string, unknown> = {};
-  for (let i = 0; i < 5; i++) {
-    result[names[i]] = bs.readString();
-  }
-  return result;
+function commanderIconDataUnpack(bs: BitStream): CommanderIconDataBlock {
+  return {
+    baseImage: bs.readString(),
+    activeImage: bs.readString(),
+    inactiveImage: bs.readString(),
+    selectImage: bs.readString(),
+    hilightImage: bs.readString(),
+  };
 }
 
 // ============================================================
 // PrecipitationData
 // ============================================================
 
-function precipitationDataUnpack(bs: BitStream): Record<string, unknown> {
+function precipitationDataUnpack(bs: BitStream): PrecipitationDataBlock {
   // Verified against decompiled binary FUN_006805d0
-  const result: Record<string, unknown> = {};
+  const result: PrecipitationDataBlock = {};
 
   // DataBlockRef (soundProfile at offset 0x48)
   result.soundProfile = readDataBlockRef(bs);
@@ -1936,7 +2022,7 @@ function precipitationDataUnpack(bs: BitStream): Record<string, unknown> {
 // FireballAtmosphereData
 // ============================================================
 
-function fireballAtmosphereDataUnpack(bs: BitStream): Record<string, unknown> {
+function fireballAtmosphereDataUnpack(bs: BitStream): FireballAtmosphereDataBlock {
   return { emitter: readDataBlockRef(bs) };
 }
 
@@ -1944,8 +2030,8 @@ function fireballAtmosphereDataUnpack(bs: BitStream): Record<string, unknown> {
 // LightningData
 // ============================================================
 
-function lightningDataUnpack(bs: BitStream): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
+function lightningDataUnpack(bs: BitStream): LightningDataBlock {
+  const result: LightningDataBlock = {};
 
   // 8 readDataBlockRef (strikeSound profiles)
   const strikeSounds: (number | null)[] = [];
@@ -1971,9 +2057,9 @@ function lightningDataUnpack(bs: BitStream): Record<string, unknown> {
 // StationFXVehicleData
 // ============================================================
 
-function stationFXVehicleDataUnpack(bs: BitStream): Record<string, unknown> {
+function stationFXVehicleDataUnpack(bs: BitStream): StationFXVehicleDataBlock {
   // Field order confirmed from decompiled binary FUN_0069d570
-  const result: Record<string, unknown> = {};
+  const result: StationFXVehicleDataBlock = {};
 
   // 11 F32 fields (offsets 0x44-0x6c)
   result.glowTopHeight = bs.readF32(); // 0x44
@@ -2005,10 +2091,14 @@ function stationFXVehicleDataUnpack(bs: BitStream): Record<string, unknown> {
   result.glowTexture = bs.readString(); // 0x98
 
   // 4×(2 readString) — pad textures
-  for (let i = 0; i < 4; i++) {
-    result[`padTexture${i}0`] = bs.readString();
-    result[`padTexture${i}1`] = bs.readString();
-  }
+  result.padTexture00 = bs.readString();
+  result.padTexture01 = bs.readString();
+  result.padTexture10 = bs.readString();
+  result.padTexture11 = bs.readString();
+  result.padTexture20 = bs.readString();
+  result.padTexture21 = bs.readString();
+  result.padTexture30 = bs.readString();
+  result.padTexture31 = bs.readString();
 
   // 2 readString
   result.lightStartColor = bs.readString();
@@ -2021,8 +2111,8 @@ function stationFXVehicleDataUnpack(bs: BitStream): Record<string, unknown> {
 // StationFXPersonalData
 // ============================================================
 
-function stationFXPersonalDataUnpack(bs: BitStream): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
+function stationFXPersonalDataUnpack(bs: BitStream): StationFXPersonalDataBlock {
+  const result: StationFXPersonalDataBlock = {};
 
   // ~10 F32
   result.glowTopRadius = bs.readF32();
@@ -2052,7 +2142,7 @@ function stationFXPersonalDataUnpack(bs: BitStream): Record<string, unknown> {
 // From Tribes 2 script reference: single readString (chatText)
 // ============================================================
 
-function cannedChatItemUnpack(bs: BitStream): Record<string, unknown> {
+function cannedChatItemUnpack(bs: BitStream): CannedChatItemDataBlock {
   return { chatText: bs.readString() };
 }
 
@@ -2060,7 +2150,7 @@ function cannedChatItemUnpack(bs: BitStream): Record<string, unknown> {
 // MissionMarkerData (extends ShapeBaseData — no additional fields)
 // ============================================================
 
-function missionMarkerDataUnpack(bs: BitStream): Record<string, unknown> {
+function missionMarkerDataUnpack(bs: BitStream): MissionMarkerDataBlock {
   return shapeBaseDataUnpack(bs);
 }
 
@@ -2068,7 +2158,7 @@ function missionMarkerDataUnpack(bs: BitStream): Record<string, unknown> {
 // GameBaseData (extends SimDataBlock — 0 bits on wire)
 // ============================================================
 
-function gameBaseDataUnpack(_bs: BitStream): Record<string, unknown> {
+function gameBaseDataUnpack(_bs: BitStream): GameBaseDataBlock {
   return {};
 }
 
@@ -2076,7 +2166,7 @@ function gameBaseDataUnpack(_bs: BitStream): Record<string, unknown> {
 // SimDataBlock — 0 bits on wire (base class)
 // ============================================================
 
-function simDataBlockUnpack(_bs: BitStream): Record<string, unknown> {
+function simDataBlockUnpack(_bs: BitStream): SimDataBlock {
   return {};
 }
 
@@ -2086,8 +2176,8 @@ function simDataBlockUnpack(_bs: BitStream): Record<string, unknown> {
 // NumSequenceBits = 7
 // ============================================================
 
-function tsShapeConstructorUnpack(bs: BitStream): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
+function tsShapeConstructorUnpack(bs: BitStream): TSShapeConstructorDataBlock {
+  const result: TSShapeConstructorDataBlock = {};
   result.shape = bs.readString();
   const count = bs.readInt(7);
   const sequences: string[] = [];
@@ -2104,8 +2194,8 @@ function tsShapeConstructorUnpack(bs: BitStream): Record<string, unknown> {
 // Parent: SimDataBlock (no-op)
 // ============================================================
 
-function effectProfileUnpack(bs: BitStream): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
+function effectProfileUnpack(bs: BitStream): EffectProfileDataBlock {
+  const result: EffectProfileDataBlock = {};
   result.minDistance = bs.readF32();     // 0x40
   result.maxDistance = bs.readF32();     // 0x44
   result.audioScale = bs.readF32();     // 0x48
@@ -2120,8 +2210,8 @@ function effectProfileUnpack(bs: BitStream): Record<string, unknown> {
 // Parent: GameBaseData → SimDataBlock (no-op chain)
 // ============================================================
 
-function jetEffectDataUnpack(bs: BitStream): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
+function jetEffectDataUnpack(bs: BitStream): JetEffectDataBlock {
+  const result: JetEffectDataBlock = {};
   result.coolColor = readColorF(bs);      // 0x44, FUN_0043f040 = packed 4×U8
   result.hotColor = readColorF(bs);       // 0x54, FUN_0043f040 = packed 4×U8
   result.activateTime = bs.readF32();     // 0x64
@@ -2144,8 +2234,8 @@ function jetEffectDataUnpack(bs: BitStream): Record<string, unknown> {
 // Parent: GameBaseData → SimDataBlock (no-op chain)
 // ============================================================
 
-function runningLightDataUnpack(bs: BitStream): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
+function runningLightDataUnpack(bs: BitStream): RunningLightDataBlock {
+  const result: RunningLightDataBlock = {};
   result.radius = bs.readF32();           // 0x48
   result.color = readColorF(bs);          // 0x4c, FUN_0043f040 = packed 4×U8
   result.type = bs.readF32();             // 0x44, stored as F32 (bool/int on wire)

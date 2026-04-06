@@ -8,7 +8,7 @@ import {
   BlockTypeMove,
   BlockTypeInfo,
 } from "./types.js";
-import type { PacketData } from "./types.js";
+import type { DemoBlock, PacketData } from "./types.js";
 import {
   buildTimeline,
   getTimelineStats,
@@ -35,10 +35,18 @@ const parser = new DemoParser(buffer);
 const demo = await parser.parseFullDemo();
 
 const registry = parser.getRegistry();
+function isPacketBlock(
+  b: DemoBlock
+): b is DemoBlock & { parsed: PacketData } {
+  return (
+    b.type === BlockTypePacket &&
+    b.parsed !== undefined &&
+    "dnetHeader" in b.parsed
+  );
+}
+
 const packetBlocks = demo.blocks.filter((b) => b.type === BlockTypePacket);
-const parsedPackets = packetBlocks.filter(
-  (b) => b.parsed && "dnetHeader" in b.parsed
-);
+const parsedPackets = demo.blocks.filter(isPacketBlock);
 
 // ================================================================
 // DataBlock summary from initial block parsing
@@ -95,7 +103,7 @@ const sendPacketBlocks = demo.blocks.filter(
 const ghostFailuresByClass = new Map<string, number>();
 const unboundGhostOps = new Map<number, { creates: number; updates: number }>();
 for (const block of parsedPackets) {
-  const pkt = block.parsed as PacketData;
+  const pkt = block.parsed;
   for (const ghost of pkt.ghosts) {
     if (ghost.classId !== undefined && ghost.parsedData === undefined && ghost.type !== "delete") {
       const binding = registry.getGhostParser(ghost.classId);
@@ -135,7 +143,7 @@ console.log(`  Info blocks (type 3): ${infoBlocks.length}`);
 // Sequence numbers
 if (parsedPackets.length > 0) {
   const seqNums = parsedPackets.map(
-    (b) => (b.parsed as PacketData).dnetHeader.seqNumber
+    (b) => b.parsed.dnetHeader.seqNumber
   );
   let seqGaps = 0;
   for (let i = 1; i < seqNums.length; i++) {
@@ -153,7 +161,7 @@ if (parsedPackets.length > 0) {
 const eventClassIds = new Map<number, number>();
 const ghostClassIds = new Map<number, number>();
 for (const block of parsedPackets) {
-  const pkt = block.parsed as PacketData;
+  const pkt = block.parsed;
   for (const evt of pkt.events) {
     eventClassIds.set(evt.classId, (eventClassIds.get(evt.classId) || 0) + 1);
   }
@@ -219,20 +227,19 @@ const positionSamples: {
   pos: { x: number; y: number; z: number };
 }[] = [];
 for (const block of parsedPackets) {
-  const pkt = block.parsed as PacketData;
+  const pkt = block.parsed;
   if (pkt.gameState.compressionPoint) {
     positionSamples.push({
       blockIdx: block.index,
       pos: pkt.gameState.compressionPoint,
     });
   }
-  const cod = pkt.gameState.controlObjectData as
-    | Record<string, unknown>
-    | undefined;
-  if (cod?.position) {
+  const cod = pkt.gameState.controlObjectData;
+  const codPos = cod?.position;
+  if (codPos && typeof codPos === "object" && "x" in codPos) {
     positionSamples.push({
       blockIdx: block.index,
-      pos: cod.position as { x: number; y: number; z: number },
+      pos: codPos as { x: number; y: number; z: number },
     });
   }
 }
@@ -252,7 +259,7 @@ if (positionSamples.length > 0) {
 // Ghost updates with position data
 let ghostsWithPosition = 0;
 for (const block of parsedPackets) {
-  const pkt = block.parsed as PacketData;
+  const pkt = block.parsed;
   for (const ghost of pkt.ghosts) {
     if (ghost.parsedData?.position) ghostsWithPosition++;
   }
@@ -267,7 +274,7 @@ if (parsedPackets.length > 0) {
   console.log();
   console.log("First 5 packets:");
   for (const block of parsedPackets.slice(0, 5)) {
-    const pkt = block.parsed as PacketData;
+    const pkt = block.parsed;
     console.log(
       `  [${block.index}] seq=${pkt.dnetHeader.seqNumber} events=${pkt.events.length} ghosts=${pkt.ghosts.length}`
     );
@@ -289,7 +296,7 @@ if (parsedPackets.length > 0) {
     for (const evt of pkt.events.slice(0, 3)) {
       const p = evt.parsedData;
       console.log(
-        `    event: classId=${evt.classId}${p ? ` → ${(p as any).type || "?"}` : " (unparsed)"}`
+        `    event: classId=${evt.classId}${p ? ` → ${String(p.type) || "?"}` : " (unparsed)"}`
       );
     }
     for (const ghost of pkt.ghosts.slice(0, 3)) {

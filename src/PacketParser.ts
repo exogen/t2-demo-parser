@@ -24,7 +24,9 @@ import type {
   ClassRegistry,
   ConnectionContext,
   GhostParserEntry,
+  ParsedData,
 } from "./ClassRegistry.js";
+import type { EventData, SimDataBlockEventData } from "./eventDataTypes.js";
 import type { GhostTracker } from "./GhostManager.js";
 
 /**
@@ -41,7 +43,7 @@ export class PacketParser {
   private ghostTracker: GhostTracker;
   private compressionPoint = { x: 0, y: 0, z: 0 };
   private controlParserByGhostIndex = new Map<number, GhostParserEntry>();
-  private dataBlockDataMap?: Map<number, Record<string, unknown>>;
+  private dataBlockDataMap?: Map<number, ParsedData>;
   private lastSeqRecvdAtSend = new Array<number>(32).fill(0);
   private lastSeqRecvd = 0;
   private highestAckedSeq = 0;
@@ -78,7 +80,7 @@ export class PacketParser {
     registry: ClassRegistry,
     ghostTracker: GhostTracker,
     options?: {
-      dataBlockDataMap?: Map<number, Record<string, unknown>>;
+      dataBlockDataMap?: Map<number, ParsedData>;
       connectionProtocolState?: ConnectionProtocolState;
       nextRecvEventSeq?: number;
     }
@@ -98,7 +100,7 @@ export class PacketParser {
     return this.compressionPoint;
   }
 
-  getDataBlockDataMap(): Map<number, Record<string, unknown>> | undefined {
+  getDataBlockDataMap(): Map<number, ParsedData> | undefined {
     return this.dataBlockDataMap;
   }
 
@@ -379,7 +381,7 @@ export class PacketParser {
     let controlObjectGhostIndex: number | undefined;
     let controlObjectDataStart: number | undefined;
     let controlObjectDataEnd: number | undefined;
-    let controlObjectData: Record<string, unknown> | undefined;
+    let controlObjectData: ParsedData | undefined;
     let compressionPoint: { x: number; y: number; z: number } | undefined;
 
     if (bs.readFlag()) {
@@ -569,7 +571,7 @@ export class PacketParser {
       const dataBitsStart = bs.getCurPos();
 
       const parserEntry = this.registry.getEventParser(classId);
-      let parsedData: Record<string, unknown> | undefined;
+      let parsedData: ParsedData | undefined;
 
       if (parserEntry) {
         try {
@@ -662,7 +664,7 @@ export class PacketParser {
    * Apply event side effects that alter ghost index state.
    * These effects occur before ghostReadPacket on the same packet.
    */
-  private applyEventSideEffects(parsedData: Record<string, unknown>): void {
+  private applyEventSideEffects(parsedData: ParsedData): void {
     const eventType = parsedData.type;
 
     if (eventType === "GhostingMessageEvent") {
@@ -691,16 +693,14 @@ export class PacketParser {
 
     // SimDataBlockEvent: store parsed DataBlock data so ghost parsers
     // (e.g., WheeledVehicle wheel count) can look it up by objectId.
-    if (
-      eventType === "SimDataBlockEvent" &&
-      this.dataBlockDataMap &&
-      parsedData.dataBlockData &&
-      typeof parsedData.objectId === "number"
-    ) {
-      this.dataBlockDataMap.set(
-        parsedData.objectId,
-        parsedData.dataBlockData as Record<string, unknown>
-      );
+    if (eventType === "SimDataBlockEvent" && this.dataBlockDataMap) {
+      const dbEvent = parsedData as SimDataBlockEventData;
+      if (
+        dbEvent.dataBlockData &&
+        typeof dbEvent.objectId === "number"
+      ) {
+        this.dataBlockDataMap.set(dbEvent.objectId, dbEvent.dataBlockData);
+      }
     }
   }
 

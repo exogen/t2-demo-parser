@@ -58,7 +58,7 @@ describe("ClassRegistry", () => {
       const reg = new ClassRegistry();
       reg.catalogEvent({
         name: "TestEvent",
-        unpack: (bs, conn) => ({}),
+        unpack: (bs, conn) => ({ type: "TestEvent" }),
       });
 
       const result = reg.bindDeterministicEvents(["TestEvent"], 255);

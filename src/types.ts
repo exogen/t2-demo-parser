@@ -1,3 +1,5 @@
+import type { ParsedData } from "./ClassRegistry.js";
+
 // Key constants from the V12 engine source
 export const MaxGhostCount = 1024;
 export const GhostIdBitSize = 10;
@@ -266,7 +268,7 @@ export interface GhostUpdate {
   classId?: number;
   updateBitsStart: number;
   updateBitsEnd: number;
-  parsedData?: Record<string, unknown>;
+  parsedData?: ParsedData;
 }
 
 export interface NetEventInfo {
@@ -276,7 +278,7 @@ export interface NetEventInfo {
   absoluteSequenceNumber?: number;
   dataBitsStart: number;
   dataBitsEnd: number;
-  parsedData?: Record<string, unknown>;
+  parsedData?: ParsedData;
 }
 
 export interface PacketData {
@@ -305,7 +307,7 @@ export interface GameState {
   controlObjectGhostIndex?: number;
   controlObjectDataStart?: number;
   controlObjectDataEnd?: number;
-  controlObjectData?: Record<string, unknown>;
+  controlObjectData?: ParsedData;
   compressionPoint?: { x: number; y: number; z: number };
   targetVisibility?: { index: number; mask: number }[];
   cameraFov?: number;
@@ -339,7 +341,7 @@ export interface ParsedDataBlock {
   classId: number;
   className: string;
   objectId: number;
-  data: Record<string, unknown>;
+  data: ParsedData;
 }
 
 export interface ScoreEntry {
@@ -410,7 +412,7 @@ export interface InitialBlockData {
   initialGhosts: GhostUpdate[];
   initialEvents: NetEventInfo[];
   controlObjectGhostIndex: number;
-  controlObjectData?: Record<string, unknown>;
+  controlObjectData?: ParsedData;
   missionName: string;
   missionCRC: number;
   phase2TrailingBits?: number;

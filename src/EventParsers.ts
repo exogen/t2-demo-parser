@@ -1,5 +1,39 @@
 import type { BitStream } from "./BitStream.js";
 import type { ClassRegistry, ConnectionContext } from "./ClassRegistry.js";
+import type {
+  SimDataBlockEventData,
+  NetStringEventData,
+  Sim2DAudioEventData,
+  Sim3DAudioEventData,
+  SetSensorGroupEventData,
+  SetServerTargetEventData,
+  TargetToEventData,
+  SetObjectActiveImageEventData,
+  SetMissionCRCEventData,
+  RemoteCommandEventData,
+  TargetInfoEventData,
+  TargetFreeEventData,
+  SimTargetAudioEventData,
+  SensorGroupColorEventData,
+  SensorGroupColorEntry,
+  ResetClientTargetsEventData,
+  RemoveClientTargetTypeEventData,
+  SimVoiceStreamEventData,
+  GhostingMessageEventData,
+  GhostAlwaysObjectEventData,
+  PathManagerEventData,
+  PathData,
+  PathPoint,
+  LightningStrikeEventData,
+  FileChunkEventData,
+  DownloadMessageEventData,
+  FileDownloadRequestEventData,
+  SimpleMessageEventData,
+  CRCChallengeEventData,
+  CRCChallengeResponseEventData,
+  GravityEventData,
+  FogChallengeEventData,
+} from "./eventDataTypes.js";
 import {
   DataBlockClassFirst,
   SimDBEventObjectIdBits,
@@ -15,7 +49,7 @@ import {
 function simDataBlockEventUnpack(
   bs: BitStream,
   conn: ConnectionContext
-): Record<string, unknown> {
+): SimDataBlockEventData {
   // Decompiled source of truth:
   //   FUN_005ffc90 reads:
   //     mProcess flag + readClassId() + readInt(7) + readInt(11) + readInt(12)
@@ -33,18 +67,15 @@ function simDataBlockEventUnpack(
   const index = bs.readInt(SimDBEventIndexBits);
   const total = bs.readInt(SimDBEventTotalBits);
 
-  const result: Record<string, unknown> = {
+  const result: SimDataBlockEventData = {
     type: "SimDataBlockEvent",
     mProcess: true,
+    objectId: id,
+    classId,
+    index,
+    total,
+    _payloadBitPos: bs.getCurPos(),
   };
-
-  result.objectId = id;
-  result.classId = classId;
-  result.index = index;
-  result.total = total;
-
-  // Save payload start for DataBlock discovery
-  result._payloadBitPos = bs.getCurPos();
 
   // Try to parse the DataBlock payload if we have a parser.
   // String buffer is already enabled by parsePacket() for the entire packet —
@@ -72,7 +103,7 @@ function simDataBlockEventUnpack(
 function netStringEventUnpack(
   bs: BitStream,
   _conn: ConnectionContext
-): Record<string, unknown> {
+): NetStringEventData {
   // Tribes2.exe source of truth (FUN_00589b60):
   // - id: readInt(10)
   // - hasValue: readFlag()
@@ -90,7 +121,7 @@ function netStringEventUnpack(
 function sim2DAudioEventUnpack(
   bs: BitStream,
   _conn: ConnectionContext
-): Record<string, unknown> {
+): Sim2DAudioEventData {
   // Binary FUN_005fff40: FUN_00436d10(bs) = readInt(11) for DataBlock object ref.
   // No +3 offset — object IDs here use the same numbering as ghost dataBlockId
   // references and SimDataBlockEvent.objectId (all keyed by raw readInt(11)).
@@ -105,11 +136,11 @@ function sim2DAudioEventUnpack(
 function sim3DAudioEventUnpack(
   bs: BitStream,
   conn: ConnectionContext
-): Record<string, unknown> {
+): Sim3DAudioEventData {
   // Binary FUN_006000f0: FUN_00436d10(bs) = readInt(11) for DataBlock object ref.
   // No +3 offset — same numbering as ghost dataBlockId and SimDataBlockEvent.
   const id = bs.readInt(11);
-  let rotation: Record<string, unknown> | undefined;
+  let rotation: Sim3DAudioEventData["rotation"];
   if (bs.readFlag()) {
     // Has cone params — read quaternion
     const qx = bs.readFloat(8);
@@ -131,7 +162,7 @@ function sim3DAudioEventUnpack(
 function setSensorGroupEventUnpack(
   bs: BitStream,
   _conn: ConnectionContext
-): Record<string, unknown> {
+): SetSensorGroupEventData {
   return { type: "SetSensorGroupEvent", sensorGroup: bs.readInt(5) };
 }
 
@@ -142,16 +173,14 @@ function setSensorGroupEventUnpack(
 function setServerTargetEventUnpack(
   bs: BitStream,
   _conn: ConnectionContext
-): Record<string, unknown> {
-  const result: Record<string, unknown> = { type: "SetServerTargetEvent" };
-  if (bs.readFlag()) {
-    result.targetId = bs.readInt(9); // TargetIdBitSize=9
-  }
-  result.targetPos = {
-    x: bs.readF32(),
-    y: bs.readF32(),
-    z: bs.readF32(),
+): SetServerTargetEventData {
+  const targetId = bs.readFlag() ? bs.readInt(9) : undefined; // TargetIdBitSize=9
+  const targetPos = { x: bs.readF32(), y: bs.readF32(), z: bs.readF32() };
+  const result: SetServerTargetEventData = {
+    type: "SetServerTargetEvent",
+    targetPos,
   };
+  if (targetId !== undefined) result.targetId = targetId;
   return result;
 }
 
@@ -162,19 +191,17 @@ function setServerTargetEventUnpack(
 function targetToEventUnpack(
   bs: BitStream,
   _conn: ConnectionContext
-): Record<string, unknown> {
-  const result: Record<string, unknown> = { type: "TargetToEvent" };
-  if (bs.readFlag()) {
-    result.targetId = bs.readInt(9);
-  }
-  if (bs.readFlag()) {
-    // Position only
-    result.targetPos = {
-      x: bs.readF32(),
-      y: bs.readF32(),
-      z: bs.readF32(),
-    };
-  }
+): TargetToEventData {
+  const targetId = bs.readFlag() ? bs.readInt(9) : undefined;
+  const targetPos = bs.readFlag()
+    ? { x: bs.readF32(), y: bs.readF32(), z: bs.readF32() }
+    : undefined;
+  const result: TargetToEventData = {
+    type: "TargetToEvent",
+    assign: false, // placeholder, overwritten below
+  };
+  if (targetId !== undefined) result.targetId = targetId;
+  if (targetPos) result.targetPos = targetPos;
   result.assign = bs.readFlag();
   return result;
 }
@@ -186,7 +213,7 @@ function targetToEventUnpack(
 function setObjectActiveImageEventUnpack(
   bs: BitStream,
   _conn: ConnectionContext
-): Record<string, unknown> {
+): SetObjectActiveImageEventData {
   const objectId = bs.readRangedU32(0, 1023); // MaxGhostCount-1
   const imageSlot = bs.readRangedU32(0, 8); // MaxMountedImages
   return { type: "SetObjectActiveImageEvent", objectId, imageSlot };
@@ -199,7 +226,7 @@ function setObjectActiveImageEventUnpack(
 function setMissionCRCEventUnpack(
   bs: BitStream,
   _conn: ConnectionContext
-): Record<string, unknown> {
+): SetMissionCRCEventData {
   return { type: "SetMissionCRCEvent", crc: bs.readU32() };
 }
 
@@ -210,21 +237,21 @@ function setMissionCRCEventUnpack(
 function remoteCommandEventUnpack(
   bs: BitStream,
   _conn: ConnectionContext
-): Record<string, unknown> {
+): RemoteCommandEventData {
   // Decompiled Tribes 2 binary source of truth:
   //   pack:   FUN_005bfd40 writes argc(5 bits), then argc×FUN_00588530
   //   unpack: FUN_005bfda0 reads argc(5 bits), then argc×FUN_00588690
   const argc = bs.readInt(5);
-  const args: string[] = [];
+  const argv: string[] = [];
   for (let i = 0; i < argc; i++) {
-    args.push(bs.unpackNetString());
+    argv.push(bs.unpackNetString());
   }
   return {
     type: "RemoteCommandEvent",
     argc,
-    argv: args,
-    funcName: args[0] ?? "",
-    args: args.slice(1),
+    argv,
+    funcName: argv[0] ?? "",
+    args: argv.slice(1),
   };
 }
 
@@ -235,7 +262,7 @@ function remoteCommandEventUnpack(
 function targetInfoEventUnpack(
   bs: BitStream,
   _conn: ConnectionContext
-): Record<string, unknown> {
+): TargetInfoEventData {
   // Decompiled Tribes2.exe source of truth (FUN_006735b0):
   // - targetId: readInt(9)
   // - tag fields: outer presence flag; inner non-empty flag; if non-empty readInt(10), else sentinel 0x400
@@ -243,8 +270,10 @@ function targetInfoEventUnpack(
   // - dataBlock: outer presence flag; inner valid flag; if valid readInt(11), else sentinel -2
   // - renderFlags: optional readInt(9)
   // - voicePitch: optional readFloat(7) * 1.5 + 0.5
-  const result: Record<string, unknown> = { type: "TargetInfoEvent" };
-  result.targetId = bs.readInt(9); // TargetIdBitSize=9
+  const result: TargetInfoEventData = {
+    type: "TargetInfoEvent",
+    targetId: bs.readInt(9), // TargetIdBitSize=9
+  };
 
   if (bs.readFlag()) {
     result.nameTag = bs.readFlag() ? bs.readInt(10) : 0x400;
@@ -285,7 +314,7 @@ function targetInfoEventUnpack(
 function targetFreeEventUnpack(
   bs: BitStream,
   _conn: ConnectionContext
-): Record<string, unknown> {
+): TargetFreeEventData {
   return { type: "TargetFreeEvent", targetId: bs.readInt(9) };
 }
 
@@ -296,11 +325,14 @@ function targetFreeEventUnpack(
 function simTargetAudioEventUnpack(
   bs: BitStream,
   conn: ConnectionContext
-): Record<string, unknown> {
-  const result: Record<string, unknown> = { type: "SimTargetAudioEvent" };
-  result.targetId = bs.readInt(9);
-  result.fileTag = bs.readInt(12);
-  result.descriptionId = bs.readRangedU32(3, 1026);
+): SimTargetAudioEventData {
+  const result: SimTargetAudioEventData = {
+    type: "SimTargetAudioEvent",
+    targetId: bs.readInt(9),
+    fileTag: bs.readInt(12),
+    descriptionId: bs.readRangedU32(3, 1026),
+    updateSound: false,
+  };
   if (bs.readFlag()) {
     result.position = bs.readCompressedPoint(conn.compressionPoint, 0.5);
   }
@@ -315,12 +347,10 @@ function simTargetAudioEventUnpack(
 function sensorGroupColorEventUnpack(
   bs: BitStream,
   _conn: ConnectionContext
-): Record<string, unknown> {
-  const result: Record<string, unknown> = { type: "SensorGroupColorEvent" };
-  result.sensorGroup = bs.readInt(5);
+): SensorGroupColorEventData {
+  const sensorGroup = bs.readInt(5);
   const updateMask = bs.readU32();
-  result.updateMask = updateMask;
-  const colors: Record<string, unknown>[] = [];
+  const colors: SensorGroupColorEntry[] = [];
   for (let i = 0; i < 32; i++) {
     if ((1 << i) & updateMask) {
       if (bs.readFlag()) {
@@ -336,8 +366,7 @@ function sensorGroupColorEventUnpack(
       }
     }
   }
-  result.colors = colors;
-  return result;
+  return { type: "SensorGroupColorEvent", sensorGroup, updateMask, colors };
 }
 
 // ============================================================
@@ -347,7 +376,7 @@ function sensorGroupColorEventUnpack(
 function resetClientTargetsEventUnpack(
   bs: BitStream,
   _conn: ConnectionContext
-): Record<string, unknown> {
+): ResetClientTargetsEventData {
   return {
     type: "ResetClientTargetsEvent",
     clientTargetsOnly: bs.readFlag(),
@@ -361,7 +390,7 @@ function resetClientTargetsEventUnpack(
 function removeClientTargetTypeEventUnpack(
   bs: BitStream,
   _conn: ConnectionContext
-): Record<string, unknown> {
+): RemoveClientTargetTypeEventData {
   return {
     type: "RemoveClientTargetTypeEvent",
     targetType: bs.readRangedU32(0, 3), // NumTypes=3
@@ -375,14 +404,21 @@ function removeClientTargetTypeEventUnpack(
 function simVoiceStreamEventUnpack(
   bs: BitStream,
   _conn: ConnectionContext
-): Record<string, unknown> {
-  const result: Record<string, unknown> = { type: "SimVoiceStreamEvent" };
-  result.streamId = bs.readInt(5);
-  result.sequence = bs.readInt(6); // SEQUENCE_BITS=6
-  result.codecId = bs.readInt(2);
+): SimVoiceStreamEventData {
+  const streamId = bs.readInt(5);
+  const sequence = bs.readInt(6); // SEQUENCE_BITS=6
+  const codecId = bs.readInt(2);
   // Server connection (demo is always client-side):
-  result.clientId = bs.readU8();
-  if (result.sequence === 0) {
+  const clientId = bs.readU8();
+  const result: SimVoiceStreamEventData = {
+    type: "SimVoiceStreamEvent",
+    streamId,
+    sequence,
+    codecId,
+    clientId,
+    size: 0,
+  };
+  if (sequence === 0) {
     result.objectId = bs.readInt(10); // GhostIdBitSize=10
   }
   // Size
@@ -393,9 +429,8 @@ function simVoiceStreamEventUnpack(
     result.size = VOICE_PACKET_DATA_SIZE;
   }
   // Skip the audio data bytes (mSize bytes, but first byte is lock byte so we read mSize-1)
-  const dataSize = (result.size as number);
-  if (dataSize > 0) {
-    result.audioData = bs.readBitsBuffer(dataSize * 8);
+  if (result.size > 0) {
+    result.audioData = bs.readBitsBuffer(result.size * 8);
   }
   return result;
 }
@@ -407,7 +442,7 @@ function simVoiceStreamEventUnpack(
 function ghostingMessageEventUnpack(
   bs: BitStream,
   _conn: ConnectionContext
-): Record<string, unknown> {
+): GhostingMessageEventData {
   return {
     type: "GhostingMessageEvent",
     sequence: bs.readU32(),
@@ -423,11 +458,14 @@ function ghostingMessageEventUnpack(
 function ghostAlwaysObjectEventUnpack(
   bs: BitStream,
   conn: ConnectionContext
-): Record<string, unknown> {
-  const result: Record<string, unknown> = { type: "GhostAlwaysObjectEvent" };
-  result.ghostIndex = bs.readInt(10);
+): GhostAlwaysObjectEventData {
+  const ghostIndex = bs.readInt(10);
   const hasObjectData = bs.readFlag();
-  result._hasObjectData = hasObjectData;
+  const result: GhostAlwaysObjectEventData = {
+    type: "GhostAlwaysObjectEvent",
+    ghostIndex,
+    _hasObjectData: hasObjectData,
+  };
 
   if (hasObjectData) {
     const classId = bs.readInt(7); // NetObjectClassBitSize=7
@@ -451,18 +489,15 @@ function ghostAlwaysObjectEventUnpack(
 function pathManagerEventUnpack(
   bs: BitStream,
   _conn: ConnectionContext
-): Record<string, unknown> {
-  const result: Record<string, unknown> = { type: "PathManagerEvent" };
-
+): PathManagerEventData {
   if (bs.readFlag()) {
     // NewPaths
-    result.messageType = "NewPaths";
     const numPaths = bs.readU32();
-    const paths: Record<string, unknown>[] = [];
+    const paths: PathData[] = [];
     for (let i = 0; i < numPaths && i < 256; i++) {
       const totalTime = bs.readU32();
       const numPoints = bs.readU32();
-      const points: Record<string, unknown>[] = [];
+      const points: PathPoint[] = [];
       for (let j = 0; j < numPoints && j < 1024; j++) {
         points.push({
           position: bs.readPoint3F(),
@@ -471,24 +506,26 @@ function pathManagerEventUnpack(
       }
       paths.push({ totalTime, points });
     }
-    result.paths = paths;
+    return { type: "PathManagerEvent", messageType: "NewPaths", paths };
   } else {
     // ModifyPath
-    result.messageType = "ModifyPath";
-    result.modifiedPath = bs.readU32();
+    const modifiedPath = bs.readU32();
     const totalTime = bs.readU32();
     const numPoints = bs.readU32();
-    const points: Record<string, unknown>[] = [];
+    const points: PathPoint[] = [];
     for (let j = 0; j < numPoints && j < 1024; j++) {
       points.push({
         position: bs.readPoint3F(),
         msToNext: bs.readU32(),
       });
     }
-    result.path = { totalTime, points };
+    return {
+      type: "PathManagerEvent",
+      messageType: "ModifyPath",
+      modifiedPath,
+      path: { totalTime, points },
+    };
   }
-
-  return result;
 }
 
 // ============================================================
@@ -498,9 +535,9 @@ function pathManagerEventUnpack(
 function lightningStrikeEventUnpack(
   bs: BitStream,
   _conn: ConnectionContext
-): Record<string, unknown> {
+): LightningStrikeEventData {
   // Binary FUN_00626e40: flag → early return if false → readInt(11) + readFloat(10) + readFloat(10) + flag → readInt(11)
-  const result: Record<string, unknown> = { type: "LightningStrikeEvent" };
+  const result: LightningStrikeEventData = { type: "LightningStrikeEvent" };
   if (!bs.readFlag()) {
     return result;
   }
@@ -520,7 +557,7 @@ function lightningStrikeEventUnpack(
 function fileChunkEventUnpack(
   bs: BitStream,
   _conn: ConnectionContext
-): Record<string, unknown> {
+): FileChunkEventData {
   const chunkLen = bs.readRangedU32(0, 63);
   const chunkData = bs.readBitsBuffer(chunkLen * 8);
   return { type: "FileChunkEvent", chunkLen, chunkData };
@@ -533,7 +570,7 @@ function fileChunkEventUnpack(
 function downloadMessageEventUnpack(
   bs: BitStream,
   _conn: ConnectionContext
-): Record<string, unknown> {
+): DownloadMessageEventData {
   return {
     type: "DownloadMessageEvent",
     value: bs.readU32(),
@@ -548,7 +585,7 @@ function downloadMessageEventUnpack(
 function fileDownloadRequestEventUnpack(
   bs: BitStream,
   _conn: ConnectionContext
-): Record<string, unknown> {
+): FileDownloadRequestEventData {
   const nameCount = bs.readRangedU32(0, 31);
   const fileNames: string[] = [];
   for (let i = 0; i < nameCount; i++) {
@@ -564,7 +601,7 @@ function fileDownloadRequestEventUnpack(
 function simpleMessageEventUnpack(
   bs: BitStream,
   _conn: ConnectionContext
-): Record<string, unknown> {
+): SimpleMessageEventData {
   return { type: "SimpleMessageEvent", message: bs.readString() };
 }
 
@@ -576,7 +613,7 @@ function simpleMessageEventUnpack(
 function crcChallengeEventUnpack(
   bs: BitStream,
   _conn: ConnectionContext
-): Record<string, unknown> {
+): CRCChallengeEventData {
   return {
     type: "CRCChallengeEvent",
     crcValue: bs.readU32(),
@@ -594,7 +631,7 @@ function crcChallengeEventUnpack(
 function crcChallengeResponseEventUnpack(
   bs: BitStream,
   _conn: ConnectionContext
-): Record<string, unknown> {
+): CRCChallengeResponseEventData {
   return {
     type: "CRCChallengeResponseEvent",
     crcValue: bs.readU32(),
@@ -611,7 +648,7 @@ function crcChallengeResponseEventUnpack(
 function gravityEventUnpack(
   bs: BitStream,
   _conn: ConnectionContext
-): Record<string, unknown> {
+): GravityEventData {
   return {
     type: "GravityEvent",
     gravity: bs.readF32(),
@@ -625,7 +662,7 @@ function gravityEventUnpack(
 function fogChallengeEventUnpack(
   _bs: BitStream,
   _conn: ConnectionContext
-): Record<string, unknown> {
+): FogChallengeEventData {
   return { type: "FogChallengeEvent" };
 }
 
