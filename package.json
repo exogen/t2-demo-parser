@@ -30,7 +30,7 @@
     "dev": "tsx src/cli.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "prepare": "rm -rf dist && tsc -p tsconfig.build.json"
+    "prepare": "npm run build"
   },
   "dependencies": {
     "debug": "^4.4.3",
