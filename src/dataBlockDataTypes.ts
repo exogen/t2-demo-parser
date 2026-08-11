@@ -143,6 +143,11 @@ export interface ShapeBaseImageDataBlock extends GameBaseDataBlock {
 // Player
 // ---------------------------------------------------------------------------
 
+/**
+ * Field names for the movement/jet/splash sections are binary-verified
+ * against Tribes2.exe (build 25034) initPersistFields offsets — the
+ * retail struct layout differs from the SVN engine source.
+ */
 export interface PlayerDataBlock extends ShapeBaseDataBlock {
   renderFirstPerson?: boolean;
   minLookAngle?: number;
@@ -150,6 +155,18 @@ export interface PlayerDataBlock extends ShapeBaseDataBlock {
   maxFreelookAngle?: number;
   maxTimeScale?: number;
   maxStepHeight?: number;
+  jetForce?: number;
+  underwaterJetForce?: number;
+  underwaterVertJetFactor?: number;
+  /** Energy drained per 32ms tick while jetting. */
+  jetEnergyDrain?: number;
+  underwaterJetEnergyDrain?: number;
+  /** Jets refuse to fire below this energy level. */
+  minJetEnergy?: number;
+  maxJetForwardSpeed?: number;
+  maxJetHorizontalPercentage?: number;
+  jetEmitter?: number | null;
+  jetEffect?: number;
   runForce?: number;
   runEnergyDrain?: number;
   minRunEnergy?: number;
@@ -158,8 +175,7 @@ export interface PlayerDataBlock extends ShapeBaseDataBlock {
   maxSideSpeed?: number;
   maxUnderwaterForwardSpeed?: number;
   maxUnderwaterBackwardSpeed?: number;
-  maxUnderwaterSideSpeedRef?: number | null;
-  runSurfaceAngleRef?: number;
+  maxUnderwaterSideSpeed?: number;
   runSurfaceAngle?: number;
   recoverDelay?: number;
   recoverRunForceScale?: number;
@@ -169,15 +185,6 @@ export interface PlayerDataBlock extends ShapeBaseDataBlock {
   minJumpSpeed?: number;
   maxJumpSpeed?: number;
   jumpSurfaceAngle?: number;
-  minJetEnergy?: number;
-  splashVelocity?: number;
-  splashAngle?: number;
-  splashFreqMod?: number;
-  splashVelEpsilon?: number;
-  bubbleEmitTime?: number;
-  medSplashSoundVel?: number;
-  hardSplashSoundVel?: number;
-  exitSplashSoundVel?: number;
   jumpDelay?: number;
   horizMaxSpeed?: number;
   horizResistSpeed?: number;
@@ -185,16 +192,16 @@ export interface PlayerDataBlock extends ShapeBaseDataBlock {
   upMaxSpeed?: number;
   upResistSpeed?: number;
   upResistFactor?: number;
-  jetEnergyDrain?: number;
-  canJet?: number;
-  maxJetHorizontalPercentage?: number;
-  maxJetForwardSpeed?: number;
-  jetForce?: number;
-  minJetSpeed?: number;
-  maxDamage?: number;
-  minImpactDamageSpeed?: number;
-  impactDamageScale?: number;
-  footSplashHeight?: number;
+  splashVelocity?: number;
+  splashAngle?: number;
+  splashFreqMod?: number;
+  splashVelEpsilon?: number;
+  bubbleEmitTime?: number;
+  mediumSplashSoundVelocity?: number;
+  hardSplashSoundVelocity?: number;
+  exitSplashSoundVelocity?: number;
+  footstepSplashHeight?: number;
+  minImpactSpeed?: number;
   sounds?: (number | null)[];
   boxSize?: Vec3;
   footPuffEmitter?: number | null;

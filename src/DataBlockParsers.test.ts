@@ -4,6 +4,7 @@ import * as path from "path";
 import { DemoParser } from "./DemoParser.js";
 import type {
   LinearProjectileDataBlock,
+  PlayerDataBlock,
   TracerProjectileDataBlock,
 } from "./dataBlockDataTypes.js";
 
@@ -115,5 +116,36 @@ describe("projectile datablock field decoding", () => {
     expect(bullet!.crossSize).toBeCloseTo(0.2, 5);
     expect(bullet!.renderCross).toBe(true);
     expect(bullet!.tracerTex1).toBe("special/tracercross");
+  });
+
+  it("decodes PlayerData movement/jet fields with engine semantics", async () => {
+    const dataBlocks = await loadDataBlocks("exogen_Katabatic_vpad.rec");
+    let armor: PlayerDataBlock | undefined;
+    for (const [, db] of dataBlocks) {
+      const data = db.data as PlayerDataBlock;
+      // The armor the recorder wears: retail-value run/speed section.
+      if (db.className === "PlayerData" && data.maxForwardSpeed === 15) {
+        armor = data;
+        break;
+      }
+    }
+    expect(armor, "light armor PlayerData datablock").toBeDefined();
+    // Retail player.cs values — each pins a decode position (previously
+    // these landed in fields named jumpForce/runSurfaceAngle/etc.).
+    expect(armor!.runForce).toBe(4968); // 55.2 * 90
+    expect(armor!.maxBackwardSpeed).toBe(13);
+    expect(armor!.maxSideSpeed).toBe(13);
+    expect(armor!.underwaterVertJetFactor).toBeCloseTo(1.5, 5);
+    expect(armor!.minLookAngle).toBeCloseTo(-1.5, 5);
+    expect(armor!.maxLookAngle).toBeCloseTo(1.5, 5);
+    // Jet energy fields must decode as plausible per-tick magnitudes
+    // (this server mods them slightly, so no exact match): drain is a
+    // fraction of maxEnergy(60), threshold is a small energy value.
+    expect(armor!.jetEnergyDrain).toBeGreaterThan(0);
+    expect(armor!.jetEnergyDrain).toBeLessThan(5);
+    expect(armor!.underwaterJetEnergyDrain).toBeGreaterThan(0);
+    expect(armor!.underwaterJetEnergyDrain).toBeLessThan(5);
+    expect(armor!.minJetEnergy).toBeGreaterThanOrEqual(0);
+    expect(armor!.minJetEnergy).toBeLessThan(10);
   });
 });

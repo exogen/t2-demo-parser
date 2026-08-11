@@ -14,6 +14,9 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
+    // Embed original sources in the .map files so sourcemaps resolve for
+    // consumers without distributing src/ in the package.
+    "inlineSources": true,
     "isolatedModules": true
   },
   "include": ["src/**/*.ts"]

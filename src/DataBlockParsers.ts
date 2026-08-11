@@ -452,51 +452,57 @@ function playerDataUnpack(bs: BitStream): PlayerDataBlock {
   // 1. readFlag → 0x340 (renderFirstPerson — NOT F32!)
   result.renderFirstPerson = bs.readFlag();
 
+  // Field names for sections 2-10 are binary-verified against the retail
+  // initPersistFields (FUN_005ce7e0 region): each read's struct offset
+  // (from the FUN_005cfa40 unpack decompile) is mapped to the name the
+  // engine registers at that offset. Earlier names were guessed from the
+  // SVN source, whose layout differs from retail.
+
   // 2. 13× F32 (offsets 0x334-0x360)
   result.minLookAngle = bs.readF32();       // 0x334
   result.maxLookAngle = bs.readF32();       // 0x338
   result.maxFreelookAngle = bs.readF32();   // 0x33c
   result.maxTimeScale = bs.readF32();       // 0x330
   result.maxStepHeight = bs.readF32();      // 0x398
-  result.runForce = bs.readF32();           // 0x344
-  result.runEnergyDrain = bs.readF32();     // 0x348
-  result.minRunEnergy = bs.readF32();       // 0x34c
-  result.maxForwardSpeed = bs.readF32();    // 0x350
-  result.maxBackwardSpeed = bs.readF32();   // 0x354
-  result.maxSideSpeed = bs.readF32();       // 0x358
-  result.maxUnderwaterForwardSpeed = bs.readF32(); // 0x35c
-  result.maxUnderwaterBackwardSpeed = bs.readF32(); // 0x360
+  result.jetForce = bs.readF32();           // 0x344
+  result.underwaterJetForce = bs.readF32(); // 0x348
+  result.underwaterVertJetFactor = bs.readF32(); // 0x34c
+  result.jetEnergyDrain = bs.readF32();     // 0x350
+  result.underwaterJetEnergyDrain = bs.readF32(); // 0x354
+  result.minJetEnergy = bs.readF32();       // 0x358
+  result.maxJetForwardSpeed = bs.readF32(); // 0x35c
+  result.maxJetHorizontalPercentage = bs.readF32(); // 0x360
   // [0x364 hardcoded to 0, not from stream]
 
   // 3. 2 optional DataBlock refs (readClassId pattern)
-  result.maxUnderwaterSideSpeedRef = readDataBlockRef(bs); // 0x368
+  result.jetEmitter = readDataBlockRef(bs); // 0x368 (jetEmitter @0x364)
   if (bs.readFlag()) {
-    result.runSurfaceAngleRef = bs.readInt(11); // 0x370 (no else/-1)
+    result.jetEffect = bs.readInt(11); // 0x370 (jetEffect @0x36c; no else/-1)
   }
 
   // 4. 9× F32 (offsets 0x374-0x394)
-  result.runSurfaceAngle = bs.readF32();    // 0x374
-  result.recoverDelay = bs.readF32();       // 0x378 (S32 on wire = 4 bytes)
-  result.recoverRunForceScale = bs.readF32(); // 0x37c
-  result.jumpForce = bs.readF32();          // 0x380
-  result.jumpEnergyDrain = bs.readF32();    // 0x384
-  result.minJumpEnergy = bs.readF32();      // 0x388
-  result.minJumpSpeed = bs.readF32();       // 0x38c
-  result.maxJumpSpeed = bs.readF32();       // 0x390
-  result.jumpSurfaceAngle = bs.readF32();   // 0x394
+  result.runForce = bs.readF32();           // 0x374
+  result.runEnergyDrain = bs.readF32();     // 0x378
+  result.minRunEnergy = bs.readF32();       // 0x37c
+  result.maxForwardSpeed = bs.readF32();    // 0x380
+  result.maxBackwardSpeed = bs.readF32();   // 0x384
+  result.maxSideSpeed = bs.readF32();       // 0x388
+  result.maxUnderwaterForwardSpeed = bs.readF32(); // 0x38c
+  result.maxUnderwaterBackwardSpeed = bs.readF32(); // 0x390
+  result.maxUnderwaterSideSpeed = bs.readF32(); // 0x394
 
   // 5. 1× F32 (offset 0x39c)
-  result.minJetEnergy = bs.readF32();       // 0x39c
+  result.runSurfaceAngle = bs.readF32();    // 0x39c
 
   // 6. 8× F32 (offsets 0x3b8-0x3d4)
-  result.splashVelocity = bs.readF32();     // 0x3b8
-  result.splashAngle = bs.readF32();        // 0x3bc
-  result.splashFreqMod = bs.readF32();      // 0x3c0
-  result.splashVelEpsilon = bs.readF32();   // 0x3c4
-  result.bubbleEmitTime = bs.readF32();     // 0x3c8
-  result.medSplashSoundVel = bs.readF32();  // 0x3cc
-  result.hardSplashSoundVel = bs.readF32(); // 0x3d0
-  result.exitSplashSoundVel = bs.readF32(); // 0x3d4
+  result.recoverDelay = bs.readF32();       // 0x3b8
+  result.recoverRunForceScale = bs.readF32(); // 0x3bc
+  result.jumpForce = bs.readF32();          // 0x3c0
+  result.jumpEnergyDrain = bs.readF32();    // 0x3c4
+  result.minJumpEnergy = bs.readF32();      // 0x3c8
+  result.minJumpSpeed = bs.readF32();       // 0x3cc
+  result.maxJumpSpeed = bs.readF32();       // 0x3d0
+  result.jumpSurfaceAngle = bs.readF32();   // 0x3d4
 
   // 7. readInt(7) → jumpDelay (offset 0x3d8)
   result.jumpDelay = bs.readInt(7);
@@ -510,18 +516,18 @@ function playerDataUnpack(bs: BitStream): PlayerDataBlock {
   result.upResistFactor = bs.readF32();     // 0x3b4
 
   // 9. 9× F32 (offsets 0xd14-0xd34, far offsets = Tribes 2-specific fields)
-  result.jetEnergyDrain = bs.readF32();     // 0xd14
-  result.canJet = bs.readF32();             // 0xd18
-  result.maxJetHorizontalPercentage = bs.readF32(); // 0xd1c
-  result.maxJetForwardSpeed = bs.readF32(); // 0xd20
-  result.jetForce = bs.readF32();           // 0xd24
-  result.minJetSpeed = bs.readF32();        // 0xd28
-  result.maxDamage = bs.readF32();          // 0xd2c
-  result.minImpactDamageSpeed = bs.readF32(); // 0xd30
-  result.impactDamageScale = bs.readF32();  // 0xd34
+  result.splashVelocity = bs.readF32();     // 0xd14
+  result.splashAngle = bs.readF32();        // 0xd18
+  result.splashFreqMod = bs.readF32();      // 0xd1c
+  result.splashVelEpsilon = bs.readF32();   // 0xd20
+  result.bubbleEmitTime = bs.readF32();     // 0xd24
+  result.mediumSplashSoundVelocity = bs.readF32(); // 0xd28
+  result.hardSplashSoundVelocity = bs.readF32();   // 0xd2c
+  result.exitSplashSoundVelocity = bs.readF32();   // 0xd30
+  result.footstepSplashHeight = bs.readF32();      // 0xd34
 
   // 10. 1× F32 (offset 0x3f4)
-  result.footSplashHeight = bs.readF32();   // 0x3f4
+  result.minImpactSpeed = bs.readF32();     // 0x3f4
 
   // 11. Sound loop: 32 iterations (MaxSounds=0x20 in binary)
   // Binary: zeros 0x428+i*4, then flag + readClassId → 0x4a8+i*4
