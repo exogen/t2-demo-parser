@@ -1,6 +1,6 @@
 {
   "name": "t2-demo-parser",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "author": "Brian Beck <exogen@gmail.com>",
   "description": "Parser for Tribes 2 demo recordings (.rec files)",
   "keywords": [
