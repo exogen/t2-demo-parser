@@ -409,18 +409,25 @@ export interface ProjectileDataBlock extends GameBaseDataBlock {
   depthTolerance?: number;
 }
 
+/**
+ * Field names binary-verified against Tribes2.exe (build 25034):
+ * initPersistFields FUN_0062b3c0 / unpackData FUN_0062bea0.
+ */
 export interface LinearProjectileDataBlock extends ProjectileDataBlock {
   dryVelocity?: number;
   wetVelocity?: number;
-  fizzleTime?: number;
-  fizzleType?: number;
-  hardRetarget?: boolean;
-  inheritedVelocityScale?: number;
+  /** Milliseconds, tick-rounded (32ms) by the engine's onAdd. */
+  fizzleTimeMS?: number;
+  /** Milliseconds, tick-rounded (32ms) by the engine's onAdd. */
   lifetimeMS?: number;
-  collideWithOwnerTimeMS?: number;
-  /** Number in LinearProjectile; boolean in TracerProjectile (readBool). */
-  proximityRadius?: number | boolean;
-  tracerProjectile?: boolean;
+  explodeOnDeath?: boolean;
+  /** Degrees, 0–90. */
+  reflectOnWaterImpactAngle?: number;
+  /** Degrees, 0–90. */
+  deflectionOnWaterImpact?: number;
+  fizzleUnderwaterMS?: number;
+  activateDelayMS?: number;
+  doDynamicClientHits?: boolean;
 }
 
 export interface GrenadeProjectileDataBlock extends ProjectileDataBlock {
@@ -529,16 +536,23 @@ export interface TargetProjectileDataBlock extends ProjectileDataBlock {
   textures?: string[];
 }
 
+/**
+ * Field names binary-verified against Tribes2.exe (build 25034):
+ * initPersistFields FUN_0063fcb0 / unpackData FUN_00640160.
+ */
 export interface TracerProjectileDataBlock extends LinearProjectileDataBlock {
   tracerLength?: number;
-  tracerAlpha?: number;
-  tracerMinPixels?: number;
-  crossViewFraction?: boolean;
-  tracerColor?: Color4;
   tracerWidth?: number;
-  muzzleVelocity?: number;
-  textureName0?: string;
-  textureName1?: string;
+  tracerMinPixels?: number;
+  /** Registered as a bool in the engine despite the name. */
+  tracerAlpha?: boolean;
+  tracerColor?: Color4;
+  /** Cross fades in when the view angle cosine exceeds this. */
+  crossViewAng?: number;
+  crossSize?: number;
+  renderCross?: boolean;
+  tracerTex0?: string;
+  tracerTex1?: string;
 }
 
 export interface EnergyProjectileDataBlock extends GrenadeProjectileDataBlock {

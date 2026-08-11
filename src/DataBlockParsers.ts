@@ -977,29 +977,37 @@ function projectileDataUnpack(bs: BitStream): ProjectileDataBlock {
 // ============================================================
 
 function linearProjectileDataUnpack(bs: BitStream): LinearProjectileDataBlock {
+  // Field names verified against decompiled binary: unpackData is
+  // FUN_0062bea0 (reads in struct-offset order), and initPersistFields
+  // FUN_0062b3c0 maps names to those offsets:
+  //   0x138 dryVelocity, 0x13c wetVelocity, 0x140 fizzleTimeMS,
+  //   0x144 lifetimeMS, 0x148 explodeOnDeath,
+  //   0x14c reflectOnWaterImpactAngle, 0x150 deflectionOnWaterImpact,
+  //   0x154 fizzleUnderwaterMS, 0x158 activateDelayMS,
+  //   0x15c doDynamicClientHits
   const result: LinearProjectileDataBlock = projectileDataUnpack(bs);
 
-  // 2×F32
+  // 2×F32 (0x138, 0x13c)
   result.dryVelocity = bs.readF32();
   result.wetVelocity = bs.readF32();
 
-  // 2×U32
-  result.fizzleTime = bs.readU32();
-  result.fizzleType = bs.readU32();
+  // 2×U32 in milliseconds, tick-rounded by onAdd (0x140, 0x144)
+  result.fizzleTimeMS = bs.readU32();
+  result.lifetimeMS = bs.readU32();
 
-  // flag
-  result.hardRetarget = bs.readFlag();
+  // flag (0x148)
+  result.explodeOnDeath = bs.readFlag();
 
-  // 2×readRangedU32(0,90)
-  result.inheritedVelocityScale = bs.readRangedU32(0, 90);
-  result.lifetimeMS = bs.readRangedU32(0, 90);
+  // 2×readRangedU32(0,90) in degrees (0x14c, 0x150)
+  result.reflectOnWaterImpactAngle = bs.readRangedU32(0, 90);
+  result.deflectionOnWaterImpact = bs.readRangedU32(0, 90);
 
-  // 2×U32
-  result.collideWithOwnerTimeMS = bs.readU32();
-  result.proximityRadius = bs.readU32();
+  // 2×U32 (0x154, 0x158)
+  result.fizzleUnderwaterMS = bs.readU32();
+  result.activateDelayMS = bs.readU32();
 
-  // flag
-  result.tracerProjectile = bs.readFlag();
+  // flag (0x15c)
+  result.doDynamicClientHits = bs.readFlag();
 
   return result;
 }
@@ -1249,30 +1257,35 @@ function targetProjectileDataUnpack(bs: BitStream): TargetProjectileDataBlock {
 // ============================================================
 
 function tracerProjectileDataUnpack(bs: BitStream): TracerProjectileDataBlock {
-  // Verified against decompiled binary FUN_00640160
+  // Field names verified against decompiled binary: unpackData is
+  // FUN_00640160 (reads in struct-offset order), and initPersistFields
+  // FUN_0063fcb0 maps names to those offsets:
+  //   0x168 tracerLength, 0x16c tracerAlpha (bool), 0x170 tracerMinPixels,
+  //   0x174 tracerColor, 0x184 tracerWidth, 0x188 crossViewAng,
+  //   0x18c crossSize, 0x190 renderCross, 0x194[2] tracerTex
   const result: TracerProjectileDataBlock = linearProjectileDataUnpack(bs);
 
   // 3 F32 (offsets 0x168, 0x184, 0x170)
   result.tracerLength = bs.readF32();
-  result.tracerAlpha = bs.readF32();
+  result.tracerWidth = bs.readF32();
   result.tracerMinPixels = bs.readF32();
 
   // readBool 8-bit (offset 0x16c)
-  result.crossViewFraction = readBool(bs);
+  result.tracerAlpha = readBool(bs);
 
   // ColorF via FUN_0043f040 (packed 4×U8 at offset 0x174)
   result.tracerColor = readColorF(bs);
 
   // 2 F32 (offsets 0x188, 0x18c)
-  result.tracerWidth = bs.readF32();
-  result.muzzleVelocity = bs.readF32();
+  result.crossViewAng = bs.readF32();
+  result.crossSize = bs.readF32();
 
   // readBool 8-bit (offset 0x190)
-  result.proximityRadius = readBool(bs);
+  result.renderCross = readBool(bs);
 
   // 2 readString (loop count=2 at offset 0x194)
-  result.textureName0 = bs.readString();
-  result.textureName1 = bs.readString();
+  result.tracerTex0 = bs.readString();
+  result.tracerTex1 = bs.readString();
 
   return result;
 }
