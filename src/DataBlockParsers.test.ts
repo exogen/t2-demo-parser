@@ -147,5 +147,36 @@ describe("projectile datablock field decoding", () => {
     expect(armor!.underwaterJetEnergyDrain).toBeLessThan(5);
     expect(armor!.minJetEnergy).toBeGreaterThanOrEqual(0);
     expect(armor!.minJetEnergy).toBeLessThan(10);
+    // Heat signature rates — retail player.cs: 1/4 and 1/3. These are the
+    // first two reads of the ground-impact tail; the old decode shifted
+    // the whole section by two slots.
+    expect(armor!.heatDecayPerSec).toBeCloseTo(0.25, 5);
+    expect(armor!.heatIncreasePerSec).toBeCloseTo(1 / 3, 5);
+    expect(armor!.groundImpactShakeDuration).toBeCloseTo(0.6, 5);
+    expect(armor!.groundImpactShakeFalloff).toBeCloseTo(10, 5);
+  });
+
+  it("decodes StationFX node names and textures exactly", async () => {
+    const dataBlocks = await loadDataBlocks("exogen_Katabatic_vpad.rec");
+    let vehicleFX: Record<string, unknown> | undefined;
+    let personalFX: Record<string, unknown> | undefined;
+    for (const [, db] of dataBlocks) {
+      if (db.className === "StationFXVehicleData") vehicleFX ??= db.data;
+      if (db.className === "StationFXPersonalData") personalFX ??= db.data;
+    }
+    // serverVehicleHud.cs VehicleInvFX values.
+    expect(vehicleFX, "StationFXVehicleData").toBeDefined();
+    expect(vehicleFX!.glowNodeName).toBe("GLOWFX");
+    expect(vehicleFX!.leftNodeName0).toBe("LFX1");
+    expect(vehicleFX!.rightNodeName0).toBe("RFX1");
+    expect(vehicleFX!.leftNodeName3).toBe("LFX4");
+    expect(vehicleFX!.rightNodeName3).toBe("RFX4");
+    expect(vehicleFX!.texture0).toBe("special/stationGlow");
+    expect(vehicleFX!.texture1).toBe("special/stationLight2");
+    // station.cs personal FX values.
+    expect(personalFX, "StationFXPersonalData").toBeDefined();
+    expect(personalFX!.leftNodeName).toBe("FX1");
+    expect(personalFX!.rightNodeName).toBe("FX2");
+    expect(personalFX!.texture0).toBe("special/stationLight");
   });
 });

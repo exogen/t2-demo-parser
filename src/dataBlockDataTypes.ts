@@ -217,8 +217,9 @@ export interface PlayerDataBlock extends ShapeBaseDataBlock {
   groundImpactShakeAmp?: Vec3;
   groundImpactShakeDuration?: number;
   groundImpactShakeFalloff?: number;
-  boundingRadius?: number;
-  moveBubbleSize?: number;
+  /** Heat signature rates (Tribes 2; retail player.cs: 1/4 and 1/3). */
+  heatDecayPerSec?: number;
+  heatIncreasePerSec?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -667,8 +668,8 @@ export interface DebrisDataBlock extends GameBaseDataBlock {
   gravModifier?: number;
   terminalVelocity?: number;
   ignoreWater?: boolean;
-  shapeFileName?: string;
-  skinName?: string;
+  texture?: string;
+  shapeName?: string;
   emitter0?: number | null;
   emitter1?: number | null;
   explosion?: number | null;
@@ -805,12 +806,12 @@ export interface AudioEnvironmentDataBlock extends SimDataBlock {
   reflectionsDelay?: number;
   reverbDelay?: number;
   roomVolume?: number;
-  effectVolume?: number;
   damping?: number;
   environmentSize?: number;
   environmentDiffusion?: number;
+  airAbsorption?: number;
+  effectVolume?: number;
   flags?: number;
-  effectVolumeHF?: number;
 }
 
 export interface AudioSampleEnvironmentDataBlock extends SimDataBlock {
@@ -930,17 +931,17 @@ export interface StationFXVehicleDataBlock extends SimDataBlock {
   sphereThetaSegments?: number;
   sphereRadius?: number;
   scale?: Vec3;
-  glowTexture?: string;
-  padTexture00?: string;
-  padTexture01?: string;
-  padTexture10?: string;
-  padTexture11?: string;
-  padTexture20?: string;
-  padTexture21?: string;
-  padTexture30?: string;
-  padTexture31?: string;
-  lightStartColor?: string;
-  lightEndColor?: string;
+  glowNodeName?: string;
+  leftNodeName0?: string;
+  rightNodeName0?: string;
+  leftNodeName1?: string;
+  rightNodeName1?: string;
+  leftNodeName2?: string;
+  rightNodeName2?: string;
+  leftNodeName3?: string;
+  rightNodeName3?: string;
+  texture0?: string;
+  texture1?: string;
 }
 
 export interface StationFXPersonalDataBlock extends SimDataBlock {
@@ -954,10 +955,10 @@ export interface StationFXPersonalDataBlock extends SimDataBlock {
   bottomAlpha?: number;
   glowSpeed?: number;
   scrollSpeed?: number;
-  glowTexture?: string;
-  padTexture?: string;
-  lightStartColor?: string;
-  lightEndColor?: string;
+  leftNodeName?: string;
+  rightNodeName?: string;
+  texture0?: string;
+  texture1?: string;
 }
 
 // ---------------------------------------------------------------------------

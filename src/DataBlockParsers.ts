@@ -568,23 +568,25 @@ function playerDataUnpack(bs: BitStream): PlayerDataBlock {
   }
   result.splashEmitters = splashEmitters;
 
-  // 17. 11× F32 for ground impact shake (offsets 0x3fc-0x424)
-  // V12 has 9 fields; binary has 11 (2 extra Tribes 2-specific)
-  result.groundImpactMinSpeed = bs.readF32();   // 0x3fc
+  // 17. 11× F32 (offsets 0x3fc-0x424). Names binary-verified against
+  // initPersistFields: the two leading fields are the Tribes 2 heat
+  // signature rates (retail player.cs: 1/4 and 1/3), then the ground
+  // impact shake block. Demo values confirm: 0.25, 0.333…
+  result.heatDecayPerSec = bs.readF32();        // 0x3fc
+  result.heatIncreasePerSec = bs.readF32();     // 0x400
+  result.groundImpactMinSpeed = bs.readF32();   // 0x404
   result.groundImpactShakeFreq = {
-    x: bs.readF32(),  // 0x400
-    y: bs.readF32(),  // 0x404
-    z: bs.readF32(),  // 0x408
+    x: bs.readF32(),  // 0x408
+    y: bs.readF32(),  // 0x40c
+    z: bs.readF32(),  // 0x410
   };
   result.groundImpactShakeAmp = {
-    x: bs.readF32(),  // 0x40c
-    y: bs.readF32(),  // 0x410
-    z: bs.readF32(),  // 0x414
+    x: bs.readF32(),  // 0x414
+    y: bs.readF32(),  // 0x418
+    z: bs.readF32(),  // 0x41c
   };
-  result.groundImpactShakeDuration = bs.readF32(); // 0x418
-  result.groundImpactShakeFalloff = bs.readF32();  // 0x41c
-  result.boundingRadius = bs.readF32();            // 0x420 (Tribes 2 extra)
-  result.moveBubbleSize = bs.readF32();            // 0x424 (Tribes 2 extra)
+  result.groundImpactShakeDuration = bs.readF32(); // 0x420
+  result.groundImpactShakeFalloff = bs.readF32();  // 0x424
 
   return result;
 }
@@ -614,6 +616,8 @@ function vehicleDataUnpack(bs: BitStream): VehicleDataBlock {
   result.softImpactSpeed = bs.readF32();          // 0x380
   result.hardImpactSpeed = bs.readF32();          // 0x384 (900 dec)
   result.minRollSpeed = bs.readF32();             // 0x388
+  // Registered in the retail binary as "maxSteerinAngle" (engine typo);
+  // we keep the corrected spelling.
   result.maxSteeringAngle = bs.readF32();         // 0x38c
   result.maxDrag = bs.readF32();                  // 0x3a4
   result.minDrag = bs.readF32();                  // 0x3a0
@@ -1529,9 +1533,10 @@ function debrisDataUnpack(bs: BitStream): DebrisDataBlock {
 
   result.ignoreWater = readBool(bs); // 0x80 (8-bit bool)
 
-  // 2 readString
-  result.shapeFileName = bs.readString(); // 0x8c
-  result.skinName = bs.readString(); // 0x84
+  // 2 readString — names binary-verified: 0x8c is registered as
+  // `texture`, 0x84 as `shapeName` (read in that wire order)
+  result.texture = bs.readString(); // 0x8c
+  result.shapeName = bs.readString(); // 0x84
 
   // 2 emitter refs (loop at 0xa4, 0xa8) + 1 explosion ref (0x94)
   result.emitter0 = readDataBlockRef(bs);
@@ -1861,16 +1866,18 @@ function audioEnvironmentUnpack(bs: BitStream): AudioEnvironmentDataBlock {
     result.reflectionsDelay = readRangedF32(bs, 0, 0.3, 9); // 0x5c
     result.reverbDelay = readRangedF32(bs, 0, 0.1, 7); // 0x60
     result.roomVolume = readRangedS32(bs, -10000, 0); // 0x64
-    result.effectVolume = readRangedF32(bs, 0, 1, 9); // 0x6c (9 bits, confirmed in binary)
-    result.damping = readRangedF32(bs, 0, 2, 10); // 0x70 (10 bits, confirmed in binary)
-    result.environmentSize = readRangedF32(bs, 1, 100, 8); // 0x74 (8 bits, confirmed in binary)
-    result.environmentDiffusion = readRangedF32(bs, 0, 1, 10); // 0x78 (10 bits, confirmed in binary)
-    // NOTE: No airAbsorption field in binary (V12 has it, Tribes 2 binary does not)
+    // Names binary-verified: initPersistFields maps 0x6c damping,
+    // 0x70 environmentSize, 0x74 environmentDiffusion, 0x78 airAbsorption.
+    result.damping = readRangedF32(bs, 0, 1, 9); // 0x6c (9 bits, confirmed in binary)
+    result.environmentSize = readRangedF32(bs, 0, 2, 10); // 0x70 (10 bits, confirmed in binary)
+    result.environmentDiffusion = readRangedF32(bs, 1, 100, 8); // 0x74 (8 bits, confirmed in binary)
+    result.airAbsorption = readRangedF32(bs, 0, 1, 10); // 0x78 (10 bits, confirmed in binary)
     result.flags = bs.readInt(6); // 0x7c
   }
 
-  // Trailing field: always present after both branches (binary line 23471, offset 0x68)
-  result.effectVolumeHF = readRangedF32(bs, 0, 1, 8);
+  // Trailing field: always present after both branches (offset 0x68 =
+  // effectVolume per initPersistFields)
+  result.effectVolume = readRangedF32(bs, 0, 1, 8);
 
   return result;
 }
@@ -2106,22 +2113,24 @@ function stationFXVehicleDataUnpack(bs: BitStream): StationFXVehicleDataBlock {
     z: bs.readF32(), // 0x94
   };
 
-  // 11 strings
-  result.glowTexture = bs.readString(); // 0x98
+  // 11 strings — names binary-verified (initPersistFields: 0x98
+  // glowNodeName, 0x9c leftNodeName[4], 0xac rightNodeName[4], 0xbc
+  // texture[2]) and demo-verified ("GLOWFX", LFX1/RFX1…, stationGlow).
+  result.glowNodeName = bs.readString(); // 0x98
 
-  // 4×(2 readString) — pad textures
-  result.padTexture00 = bs.readString();
-  result.padTexture01 = bs.readString();
-  result.padTexture10 = bs.readString();
-  result.padTexture11 = bs.readString();
-  result.padTexture20 = bs.readString();
-  result.padTexture21 = bs.readString();
-  result.padTexture30 = bs.readString();
-  result.padTexture31 = bs.readString();
+  // 4×(left, right) node name pairs, interleaved on the wire
+  result.leftNodeName0 = bs.readString();
+  result.rightNodeName0 = bs.readString();
+  result.leftNodeName1 = bs.readString();
+  result.rightNodeName1 = bs.readString();
+  result.leftNodeName2 = bs.readString();
+  result.rightNodeName2 = bs.readString();
+  result.leftNodeName3 = bs.readString();
+  result.rightNodeName3 = bs.readString();
 
   // 2 readString
-  result.lightStartColor = bs.readString();
-  result.lightEndColor = bs.readString();
+  result.texture0 = bs.readString();
+  result.texture1 = bs.readString();
 
   return result;
 }
@@ -2145,13 +2154,12 @@ function stationFXPersonalDataUnpack(bs: BitStream): StationFXPersonalDataBlock 
   result.glowSpeed = bs.readF32();
   result.scrollSpeed = bs.readF32();
 
-  // 2 readString
-  result.glowTexture = bs.readString();
-  result.padTexture = bs.readString();
-
-  // 2 readString
-  result.lightStartColor = bs.readString();
-  result.lightEndColor = bs.readString();
+  // 4 strings — demo-verified ("FX1", "FX2", "special/stationLight"):
+  // the two attach node names, then texture[2]
+  result.leftNodeName = bs.readString();
+  result.rightNodeName = bs.readString();
+  result.texture0 = bs.readString();
+  result.texture1 = bs.readString();
 
   return result;
 }
