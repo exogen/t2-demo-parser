@@ -3,13 +3,16 @@ export { BitStream } from "./BitStream.js";
 export { PacketParser } from "./PacketParser.js";
 export { ClassRegistry } from "./ClassRegistry.js";
 export { GhostTracker } from "./GhostManager.js";
-export { createLiveParser } from "./LiveParser.js";
-export type { LiveParserKit } from "./LiveParser.js";
 export {
-  buildTimeline,
-  getTimelineStats,
-  exportTimeline,
-} from "./Timeline.js";
+  createLiveParser,
+  passiveObserverProtocolState,
+} from "./LiveParser.js";
+export type { LiveParserKit, LiveParserSeed } from "./LiveParser.js";
+export {
+  GhostStateAccumulator,
+  mergeGhostParsedData,
+} from "./GhostStateAccumulator.js";
+export { buildTimeline, getTimelineStats, exportTimeline } from "./Timeline.js";
 
 export type {
   DemoHeader,

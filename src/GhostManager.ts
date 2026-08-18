@@ -126,9 +126,12 @@ function readMove(bs: BitStream): MoveData {
  * Read a packed ColorF: 4 × U8 (32 bits total), each converted to [0..1] float.
  * From decompiled binary: FUN_0043f040 reads 4 bytes, each × (1/255).
  */
-function readPackedColorF(
-  bs: BitStream
-): { r: number; g: number; b: number; a: number } {
+function readPackedColorF(bs: BitStream): {
+  r: number;
+  g: number;
+  b: number;
+  a: number;
+} {
   return {
     r: bs.readInt(8) / 255,
     g: bs.readInt(8) / 255,
@@ -152,7 +155,7 @@ function readObjectRef11(bs: BitStream): number {
 function readGameBaseUpdate(
   bs: BitStream,
   _isInitial: boolean,
-  _conn: ConnectionContext
+  _conn: ConnectionContext,
 ): GameBaseGhostData {
   const result: GameBaseGhostData = {};
 
@@ -179,7 +182,7 @@ function readGameBaseUpdate(
 function readShapeBaseUpdate(
   bs: BitStream,
   isInitial: boolean,
-  conn: ConnectionContext
+  conn: ConnectionContext,
 ): ShapeBaseGhostData {
   const result: ShapeBaseGhostData = readGameBaseUpdate(bs, isInitial, conn);
 
@@ -360,7 +363,7 @@ function readShapeBaseUpdate(
 function playerUnpackUpdate(
   bs: BitStream,
   isInitial: boolean,
-  conn: ConnectionContext
+  conn: ConnectionContext,
 ): PlayerGhostData {
   const result: PlayerGhostData = readShapeBaseUpdate(bs, isInitial, conn);
 
@@ -436,7 +439,7 @@ function playerUnpackUpdate(
 
 function playerReadPacketData(
   bs: BitStream,
-  conn: ConnectionContext
+  conn: ConnectionContext,
 ): PlayerPacketData {
   const result: PlayerPacketData = {};
 
@@ -509,7 +512,7 @@ function playerReadPacketData(
 function vehicleUnpackUpdate(
   bs: BitStream,
   isInitial: boolean,
-  conn: ConnectionContext
+  conn: ConnectionContext,
 ): VehicleGhostData {
   const result: VehicleGhostData = readShapeBaseUpdate(bs, isInitial, conn);
 
@@ -554,7 +557,7 @@ function vehicleUnpackUpdate(
 
 function vehicleReadPacketData(
   bs: BitStream,
-  conn: ConnectionContext
+  conn: ConnectionContext,
 ): VehiclePacketData {
   // Vehicle::readPacketData (binary FUN_0060d740)
   // ShapeBase::readPacketData → GameBase::readPacketData (empty) + energy + recharge
@@ -582,24 +585,15 @@ function vehicleReadPacketData(
 
 function wheeledVehicleReadPacketData(
   bs: BitStream,
-  conn: ConnectionContext
+  conn: ConnectionContext,
 ): WheeledVehiclePacketData {
   // WheeledVehicle::readPacketData (binary FUN_00615840)
   // Calls Parent::readPacketData (Vehicle) + braking flag + per-wheel data
   const result: WheeledVehiclePacketData = vehicleReadPacketData(bs, conn);
   result.braking = bs.readFlag();
   // wheelCount × 3 F32 (avel, Dy, Dx per wheel)
-  // Use ghost wheel count cache (populated during ghost creates)
-  let wheelCount = 4;
-  const ghostIdx = conn.currentGhostIndex;
-  if (ghostIdx !== undefined) {
-    const cached = ghostWheelCountCache.get(ghostIdx);
-    if (cached !== undefined) {
-      wheelCount = cached;
-    }
-  }
   const wheels: Array<{ avel: number; dy: number; dx: number }> = [];
-  for (let i = 0; i < wheelCount; i++) {
+  for (let i = 0; i < WheeledVehicleWheelCount; i++) {
     wheels.push({
       avel: bs.readF32(),
       dy: bs.readF32(),
@@ -617,9 +611,13 @@ function wheeledVehicleReadPacketData(
 function flyingVehicleUnpackUpdate(
   bs: BitStream,
   isInitial: boolean,
-  conn: ConnectionContext
+  conn: ConnectionContext,
 ): FlyingVehicleGhostData {
-  const result: FlyingVehicleGhostData = vehicleUnpackUpdate(bs, isInitial, conn);
+  const result: FlyingVehicleGhostData = vehicleUnpackUpdate(
+    bs,
+    isInitial,
+    conn,
+  );
 
   // FlyingVehicle has its own control gate flag (separate from Vehicle's).
   // Retail binary removed the V12 ThrustMask wrapper but kept the per-subclass
@@ -640,9 +638,13 @@ function flyingVehicleUnpackUpdate(
 function hoverVehicleUnpackUpdate(
   bs: BitStream,
   isInitial: boolean,
-  conn: ConnectionContext
+  conn: ConnectionContext,
 ): HoverVehicleGhostData {
-  const result: HoverVehicleGhostData = vehicleUnpackUpdate(bs, isInitial, conn);
+  const result: HoverVehicleGhostData = vehicleUnpackUpdate(
+    bs,
+    isInitial,
+    conn,
+  );
   result.thrustDirection = bs.readInt(3); // NumThrustBits=3
   return result;
 }
@@ -654,7 +656,7 @@ function hoverVehicleUnpackUpdate(
 function itemUnpackUpdate(
   bs: BitStream,
   isInitial: boolean,
-  conn: ConnectionContext
+  conn: ConnectionContext,
 ): ItemGhostData {
   const result: ItemGhostData = readShapeBaseUpdate(bs, isInitial, conn);
 
@@ -701,7 +703,7 @@ function itemUnpackUpdate(
 function staticShapeUnpackUpdate(
   bs: BitStream,
   isInitial: boolean,
-  conn: ConnectionContext
+  conn: ConnectionContext,
 ): StaticShapeGhostData {
   const result: StaticShapeGhostData = readShapeBaseUpdate(bs, isInitial, conn);
 
@@ -724,7 +726,7 @@ function staticShapeUnpackUpdate(
 function scopeAlwaysShapeUnpackUpdate(
   bs: BitStream,
   isInitial: boolean,
-  conn: ConnectionContext
+  conn: ConnectionContext,
 ): StaticShapeGhostData {
   // ScopeAlwaysShape vtable +0x4c -> FUN_00602da0 (same as StaticShape).
   return staticShapeUnpackUpdate(bs, isInitial, conn);
@@ -733,7 +735,7 @@ function scopeAlwaysShapeUnpackUpdate(
 function markerUnpackUpdate(
   bs: BitStream,
   _isInitial: boolean,
-  _conn: ConnectionContext
+  _conn: ConnectionContext,
 ): MarkerGhostData {
   // Marker::unpackUpdate (simPath.cc): Parent::unpackUpdate (SceneObject,
   // no data) then reads just a Point3F position.
@@ -744,7 +746,7 @@ function markerUnpackUpdate(
 function simpleNetObjectUnpackUpdate(
   bs: BitStream,
   _isInitial: boolean,
-  _conn: ConnectionContext
+  _conn: ConnectionContext,
 ): SimpleNetObjectGhostData {
   // SimpleNetObject vtable +0x4c -> FUN_005c5220 (single string).
   return { message: bs.readString() };
@@ -753,11 +755,15 @@ function simpleNetObjectUnpackUpdate(
 function beaconObjectUnpackUpdate(
   bs: BitStream,
   isInitial: boolean,
-  conn: ConnectionContext
+  conn: ConnectionContext,
 ): BeaconObjectGhostData {
   // BeaconObject vtable +0x4c -> FUN_006a3ae0:
   // StaticShape payload + optional 2-bit beacon type.
-  const result: BeaconObjectGhostData = staticShapeUnpackUpdate(bs, isInitial, conn);
+  const result: BeaconObjectGhostData = staticShapeUnpackUpdate(
+    bs,
+    isInitial,
+    conn,
+  );
   if (bs.readFlag()) {
     result.beaconType = bs.readInt(2);
   }
@@ -767,12 +773,16 @@ function beaconObjectUnpackUpdate(
 function missionMarkerUnpackUpdate(
   bs: BitStream,
   isInitial: boolean,
-  conn: ConnectionContext
+  conn: ConnectionContext,
 ): MissionMarkerGhostData {
   // MissionMarker extends ShapeBase (confirmed by V12 source and empirical
   // testing). The Ghidra decompilation misidentified the parent call — the
   // real parent is ShapeBase::unpackUpdate, not an empty stub.
-  const result: MissionMarkerGhostData = readShapeBaseUpdate(bs, isInitial, conn);
+  const result: MissionMarkerGhostData = readShapeBaseUpdate(
+    bs,
+    isInitial,
+    conn,
+  );
 
   // MissionMarker's own field: PositionMask
   if (bs.readFlag()) {
@@ -788,7 +798,7 @@ function missionMarkerUnpackUpdate(
 function debrisUnpackUpdate(
   bs: BitStream,
   isInitial: boolean,
-  conn: ConnectionContext
+  conn: ConnectionContext,
 ): DebrisGhostData {
   // Debris vtable +0x4c -> FUN_006844d0.
   // Confirmed in decompiled binary: calls parent GameBase::unpackUpdate first.
@@ -846,7 +856,7 @@ function debrisUnpackUpdate(
 function projectileUnpackUpdate(
   bs: BitStream,
   isInitial: boolean,
-  conn: ConnectionContext
+  conn: ConnectionContext,
 ): ProjectileGhostData {
   // Projectile vtable +0x4c -> FUN_005e3360 (GameBase only).
   return readGameBaseUpdate(bs, isInitial, conn);
@@ -859,7 +869,7 @@ function projectileUnpackUpdate(
 function bombProjectileUnpackUpdate(
   bs: BitStream,
   _isInitial: boolean,
-  _conn: ConnectionContext
+  _conn: ConnectionContext,
 ): BombProjectileGhostData {
   // BombProjectile vtable +0x4c -> FUN_00636050.
   const result: BombProjectileGhostData = {};
@@ -896,7 +906,11 @@ function bombProjectileUnpackUpdate(
 
   if (bs.readFlag()) {
     result.explodePoint = { x: bs.readF32(), y: bs.readF32(), z: bs.readF32() };
-    result.explodeNormal = { x: bs.readF32(), y: bs.readF32(), z: bs.readF32() };
+    result.explodeNormal = {
+      x: bs.readF32(),
+      y: bs.readF32(),
+      z: bs.readF32(),
+    };
   }
 
   if (bs.readFlag()) {
@@ -919,10 +933,14 @@ function bombProjectileUnpackUpdate(
 function grenadeUnpackUpdate(
   bs: BitStream,
   isInitial: boolean,
-  conn: ConnectionContext
+  conn: ConnectionContext,
 ): GrenadeProjectileGhostData {
   // Parent: Projectile → GameBase (Projectile has no override)
-  const result: GrenadeProjectileGhostData = readGameBaseUpdate(bs, isInitial, conn);
+  const result: GrenadeProjectileGhostData = readGameBaseUpdate(
+    bs,
+    isInitial,
+    conn,
+  );
 
   if (bs.readFlag()) {
     // InitialUpdateMask
@@ -961,11 +979,15 @@ function grenadeUnpackUpdate(
 function seekerUnpackUpdate(
   bs: BitStream,
   isInitial: boolean,
-  conn: ConnectionContext
+  conn: ConnectionContext,
 ): SeekerProjectileGhostData {
   // SeekerProjectile::unpackUpdate in build 25034 is FUN_0063c010
   // (vtable PTR_FUN_007ae54c + 0x4c), with parent GameBase::unpackUpdate.
-  const result: SeekerProjectileGhostData = readGameBaseUpdate(bs, isInitial, conn);
+  const result: SeekerProjectileGhostData = readGameBaseUpdate(
+    bs,
+    isInitial,
+    conn,
+  );
 
   const fullStateMask = bs.readFlag();
   if (!fullStateMask) {
@@ -973,8 +995,16 @@ function seekerUnpackUpdate(
     const isExplosion = bs.readFlag();
     if (isExplosion) {
       // FUN_00639370: explode(position, normal) — SeekerProjectile detonation.
-      result.explodePosition = { x: bs.readF32(), y: bs.readF32(), z: bs.readF32() };
-      result.explodeNormal = { x: bs.readF32(), y: bs.readF32(), z: bs.readF32() };
+      result.explodePosition = {
+        x: bs.readF32(),
+        y: bs.readF32(),
+        z: bs.readF32(),
+      };
+      result.explodeNormal = {
+        x: bs.readF32(),
+        y: bs.readF32(),
+        z: bs.readF32(),
+      };
       return result;
     }
 
@@ -1048,7 +1078,7 @@ function seekerUnpackUpdate(
 function turretUnpackUpdate(
   bs: BitStream,
   isInitial: boolean,
-  conn: ConnectionContext
+  conn: ConnectionContext,
 ): TurretGhostData {
   // Turret extends StaticShape (confirmed in decompiled binary FUN_00655f60
   // calls FUN_00602da0 = StaticShape::unpackUpdate as parent)
@@ -1081,7 +1111,7 @@ function turretUnpackUpdate(
 function interiorUnpackUpdate(
   bs: BitStream,
   _isInitial: boolean,
-  _conn: ConnectionContext
+  _conn: ConnectionContext,
 ): InteriorInstanceGhostData {
   const result: InteriorInstanceGhostData = {};
 
@@ -1122,12 +1152,12 @@ function interiorUnpackUpdate(
     }
     // AudioMask
     if (bs.readFlag()) {
-    if (bs.readFlag()) {
-      result.audioProfileId = readObjectRef11(bs);
-    }
-    if (bs.readFlag()) {
-      result.audioEnvironmentId = readObjectRef11(bs);
-    }
+      if (bs.readFlag()) {
+        result.audioProfileId = readObjectRef11(bs);
+      }
+      if (bs.readFlag()) {
+        result.audioEnvironmentId = readObjectRef11(bs);
+      }
     }
   }
 
@@ -1141,7 +1171,7 @@ function interiorUnpackUpdate(
 function cameraUnpackUpdate(
   bs: BitStream,
   isInitial: boolean,
-  conn: ConnectionContext
+  conn: ConnectionContext,
 ): CameraGhostData {
   // Camera::unpackUpdate (FUN_005cc8c0):
   // 1) ShapeBase::unpackUpdate (FUN_005ef0e0)
@@ -1168,7 +1198,7 @@ function cameraUnpackUpdate(
 
 function cameraReadPacketData(
   bs: BitStream,
-  conn: ConnectionContext
+  conn: ConnectionContext,
 ): CameraPacketData {
   const result: CameraPacketData = {};
 
@@ -1221,10 +1251,14 @@ function cameraReadPacketData(
 function linearProjectileUnpackUpdate(
   bs: BitStream,
   isInitial: boolean,
-  conn: ConnectionContext
+  conn: ConnectionContext,
 ): LinearProjectileGhostData {
   // Parent: LinearProjectile → Projectile → GameBase
-  const result: LinearProjectileGhostData = readGameBaseUpdate(bs, isInitial, conn);
+  const result: LinearProjectileGhostData = readGameBaseUpdate(
+    bs,
+    isInitial,
+    conn,
+  );
 
   if (bs.readFlag()) {
     // InitialUpdateMask
@@ -1269,10 +1303,14 @@ function linearProjectileUnpackUpdate(
 function elfProjectileUnpackUpdate(
   bs: BitStream,
   isInitial: boolean,
-  conn: ConnectionContext
+  conn: ConnectionContext,
 ): ELFProjectileGhostData {
   // Parent: ELFProjectile → GameBase
-  const result: ELFProjectileGhostData = readGameBaseUpdate(bs, isInitial, conn);
+  const result: ELFProjectileGhostData = readGameBaseUpdate(
+    bs,
+    isInitial,
+    conn,
+  );
 
   if (bs.readFlag()) {
     if (bs.readFlag()) {
@@ -1292,10 +1330,14 @@ function elfProjectileUnpackUpdate(
 function repairProjectileUnpackUpdate(
   bs: BitStream,
   isInitial: boolean,
-  conn: ConnectionContext
+  conn: ConnectionContext,
 ): RepairProjectileGhostData {
   // Parent: RepairProjectile → GameBase
-  const result: RepairProjectileGhostData = readGameBaseUpdate(bs, isInitial, conn);
+  const result: RepairProjectileGhostData = readGameBaseUpdate(
+    bs,
+    isInitial,
+    conn,
+  );
 
   if (bs.readFlag()) {
     // InitialUpdateMask
@@ -1317,10 +1359,14 @@ function repairProjectileUnpackUpdate(
 function targetProjectileUnpackUpdate(
   bs: BitStream,
   isInitial: boolean,
-  conn: ConnectionContext
+  conn: ConnectionContext,
 ): TargetProjectileGhostData {
   // Parent: TargetProjectile → Projectile → GameBase
-  const result: TargetProjectileGhostData = readGameBaseUpdate(bs, isInitial, conn);
+  const result: TargetProjectileGhostData = readGameBaseUpdate(
+    bs,
+    isInitial,
+    conn,
+  );
 
   if (bs.readFlag()) {
     // InitialUpdateMask
@@ -1355,10 +1401,14 @@ function targetProjectileUnpackUpdate(
 function wayPointUnpackUpdate(
   bs: BitStream,
   isInitial: boolean,
-  conn: ConnectionContext
+  conn: ConnectionContext,
 ): WayPointGhostData {
   // WayPoint extends MissionMarker (V12 source: missionMarker.h)
-  const result: WayPointGhostData = missionMarkerUnpackUpdate(bs, isInitial, conn);
+  const result: WayPointGhostData = missionMarkerUnpackUpdate(
+    bs,
+    isInitial,
+    conn,
+  );
 
   // WayPoint additions
   if (bs.readFlag()) {
@@ -1381,10 +1431,14 @@ function wayPointUnpackUpdate(
 function spawnSphereUnpackUpdate(
   bs: BitStream,
   isInitial: boolean,
-  conn: ConnectionContext
+  conn: ConnectionContext,
 ): SpawnSphereGhostData {
   // SpawnSphere extends MissionMarker (V12 source: missionMarker.h)
-  const result: SpawnSphereGhostData = missionMarkerUnpackUpdate(bs, isInitial, conn);
+  const result: SpawnSphereGhostData = missionMarkerUnpackUpdate(
+    bs,
+    isInitial,
+    conn,
+  );
 
   // SpawnSphere additions
   if (bs.readFlag()) {
@@ -1404,11 +1458,15 @@ function spawnSphereUnpackUpdate(
 function forceFieldBareUnpackUpdate(
   bs: BitStream,
   _isInitial: boolean,
-  _conn: ConnectionContext
+  _conn: ConnectionContext,
 ): ForceFieldBareGhostData {
   // ForceFieldBare::unpackUpdate (FUN_00676d30):
   // GameBase parent, then two-level transform flags, then StateChangeMask.
-  const result: ForceFieldBareGhostData = readGameBaseUpdate(bs, _isInitial, _conn);
+  const result: ForceFieldBareGhostData = readGameBaseUpdate(
+    bs,
+    _isInitial,
+    _conn,
+  );
 
   // InitialUpdateMask flag — if true, reads transform+scale (initial path)
   if (bs.readFlag()) {
@@ -1447,7 +1505,7 @@ function forceFieldBareUnpackUpdate(
 function tsStaticUnpackUpdate(
   bs: BitStream,
   _isInitial: boolean,
-  _conn: ConnectionContext
+  _conn: ConnectionContext,
 ): TSStaticGhostData {
   const result: TSStaticGhostData = {};
 
@@ -1467,7 +1525,7 @@ function tsStaticUnpackUpdate(
 function terrainBlockUnpackUpdate(
   bs: BitStream,
   _isInitial: boolean,
-  _conn: ConnectionContext
+  _conn: ConnectionContext,
 ): TerrainBlockGhostData {
   // TerrainBlock extends SceneObject (NOT GameBase).
   // V12 source: terrain/terrData.cc lines 910-941
@@ -1516,7 +1574,7 @@ function terrainBlockUnpackUpdate(
 function sunUnpackUpdate(
   bs: BitStream,
   _isInitial: boolean,
-  _conn: ConnectionContext
+  _conn: ConnectionContext,
 ): SunGhostData {
   // Binary FUN_005b1620: TWO separate readFlag blocks.
   // Block 1: 5 texture/environment map name strings
@@ -1540,7 +1598,12 @@ function sunUnpackUpdate(
     }
     result.direction = { x: values[0], y: values[1], z: values[2] };
     result.color = { r: values[3], g: values[4], b: values[5], a: values[6] };
-    result.ambient = { r: values[7], g: values[8], b: values[9], a: values[10] };
+    result.ambient = {
+      r: values[7],
+      g: values[8],
+      b: values[9],
+      a: values[10],
+    };
     // Remaining 8 values are additional light properties in build 25034
     result.extraLightProps = values.slice(11);
   }
@@ -1555,7 +1618,7 @@ function sunUnpackUpdate(
 function skyUnpackUpdate(
   bs: BitStream,
   _isInitial: boolean,
-  _conn: ConnectionContext
+  _conn: ConnectionContext,
 ): SkyGhostData {
   const result: SkyGhostData = {};
 
@@ -1577,10 +1640,19 @@ function skyUnpackUpdate(
     // bool fields are read via Stream::read(1) in the binary (byte-sized bool)
     result.useSkyTextures = bs.readBool();
     result.renderBottomTexture = bs.readBool();
-    result.skySolidColor = { r: bs.readF32(), g: bs.readF32(), b: bs.readF32() };
+    result.skySolidColor = {
+      r: bs.readF32(),
+      g: bs.readF32(),
+      b: bs.readF32(),
+    };
     result.windEffectPrecipitation = bs.readBool();
 
-    const fogVolumes: Array<{ visibleDistance: number; minHeight: number; maxHeight: number; color: { r: number; g: number; b: number } }> = [];
+    const fogVolumes: Array<{
+      visibleDistance: number;
+      minHeight: number;
+      maxHeight: number;
+      color: { r: number; g: number; b: number };
+    }> = [];
     for (let i = 0; i < fogVolumeCount; i++) {
       // V12 sky.cc writes: visibleDistance, minHeight, maxHeight, color
       fogVolumes.push({
@@ -1592,7 +1664,11 @@ function skyUnpackUpdate(
     }
     result.fogVolumes = fogVolumes;
 
-    const cloudLayers: Array<{ texture: string; heightPercent: number; speed: number }> = [];
+    const cloudLayers: Array<{
+      texture: string;
+      heightPercent: number;
+      speed: number;
+    }> = [];
     for (let i = 0; i < 3; i++) {
       cloudLayers.push({
         texture: bs.readString(),
@@ -1673,7 +1749,7 @@ function skyUnpackUpdate(
 function lightningUnpackUpdate(
   bs: BitStream,
   isInitial: boolean,
-  conn: ConnectionContext
+  conn: ConnectionContext,
 ): LightningGhostData {
   const result: LightningGhostData = readGameBaseUpdate(bs, isInitial, conn);
   if (bs.readFlag()) {
@@ -1701,7 +1777,7 @@ const WC_NUM_SUBMERGE_TEX = 2;
 function waterBlockUnpackUpdate(
   bs: BitStream,
   _isInitial: boolean,
-  _conn: ConnectionContext
+  _conn: ConnectionContext,
 ): WaterBlockGhostData {
   const result: WaterBlockGhostData = {};
   // No flag checks — always sends everything
@@ -1734,7 +1810,7 @@ function waterBlockUnpackUpdate(
 function missionAreaUnpackUpdate(
   bs: BitStream,
   _isInitial: boolean,
-  _conn: ConnectionContext
+  _conn: ConnectionContext,
 ): MissionAreaGhostData {
   const result: MissionAreaGhostData = {};
   if (bs.readFlag()) {
@@ -1758,7 +1834,7 @@ function missionAreaUnpackUpdate(
 function splashUnpackUpdate(
   bs: BitStream,
   isInitial: boolean,
-  conn: ConnectionContext
+  conn: ConnectionContext,
 ): SplashGhostData {
   const result: SplashGhostData = readGameBaseUpdate(bs, isInitial, conn);
   if (bs.readFlag()) {
@@ -1774,7 +1850,7 @@ function splashUnpackUpdate(
 function shockwaveUnpackUpdate(
   bs: BitStream,
   isInitial: boolean,
-  conn: ConnectionContext
+  conn: ConnectionContext,
 ): ShockwaveGhostData {
   const result: ShockwaveGhostData = readGameBaseUpdate(bs, isInitial, conn);
   if (bs.readFlag()) {
@@ -1791,9 +1867,13 @@ function shockwaveUnpackUpdate(
 function fireballAtmosphereUnpackUpdate(
   bs: BitStream,
   isInitial: boolean,
-  conn: ConnectionContext
+  conn: ConnectionContext,
 ): FireballAtmosphereGhostData {
-  const result: FireballAtmosphereGhostData = readGameBaseUpdate(bs, isInitial, conn);
+  const result: FireballAtmosphereGhostData = readGameBaseUpdate(
+    bs,
+    isInitial,
+    conn,
+  );
   if (bs.readFlag()) {
     result.dropRadius = bs.readF32();
     result.dropsPerMinute = bs.readF32();
@@ -1813,7 +1893,7 @@ function fireballAtmosphereUnpackUpdate(
 function vehicleBlockerUnpackUpdate(
   bs: BitStream,
   _isInitial: boolean,
-  _conn: ConnectionContext
+  _conn: ConnectionContext,
 ): VehicleBlockerGhostData {
   // VehicleBlocker instance vtable is 0x00796ca4. Slot +0x4c resolves to
   // FUN_005b9d40, which always reads:
@@ -1836,9 +1916,13 @@ function vehicleBlockerUnpackUpdate(
 function particleEmissionDummyUnpackUpdate(
   bs: BitStream,
   isInitial: boolean,
-  conn: ConnectionContext
+  conn: ConnectionContext,
 ): ParticleEmissionDummyGhostData {
-  const result: ParticleEmissionDummyGhostData = readGameBaseUpdate(bs, isInitial, conn);
+  const result: ParticleEmissionDummyGhostData = readGameBaseUpdate(
+    bs,
+    isInitial,
+    conn,
+  );
   // Always writes transform + scale + optional datablock
   result.transform = bs.readMatrixF();
   result.scale = bs.readPoint3F();
@@ -1855,9 +1939,13 @@ function particleEmissionDummyUnpackUpdate(
 function precipitationUnpackUpdate(
   bs: BitStream,
   isInitial: boolean,
-  conn: ConnectionContext
+  conn: ConnectionContext,
 ): PrecipitationGhostData {
-  const result: PrecipitationGhostData = readGameBaseUpdate(bs, isInitial, conn);
+  const result: PrecipitationGhostData = readGameBaseUpdate(
+    bs,
+    isInitial,
+    conn,
+  );
 
   // Mask order from decompiled binary FUN_00681260:
   // InitMask, StormShowMask, StormMask, PercentageMask
@@ -1916,10 +2004,14 @@ function precipitationUnpackUpdate(
 function sniperProjectileUnpackUpdate(
   bs: BitStream,
   isInitial: boolean,
-  conn: ConnectionContext
+  conn: ConnectionContext,
 ): SniperProjectileGhostData {
   // Parent: SniperProjectile → LinearProjectile → Projectile → GameBase
-  const result: SniperProjectileGhostData = readGameBaseUpdate(bs, isInitial, conn);
+  const result: SniperProjectileGhostData = readGameBaseUpdate(
+    bs,
+    isInitial,
+    conn,
+  );
 
   if (bs.readFlag()) {
     // InitialUpdateMask
@@ -1956,10 +2048,14 @@ function sniperProjectileUnpackUpdate(
 function shockLanceProjectileUnpackUpdate(
   bs: BitStream,
   isInitial: boolean,
-  conn: ConnectionContext
+  conn: ConnectionContext,
 ): ShockLanceProjectileGhostData {
   // Parent: ShockLanceProjectile → Projectile → GameBase
-  const result: ShockLanceProjectileGhostData = readGameBaseUpdate(bs, isInitial, conn);
+  const result: ShockLanceProjectileGhostData = readGameBaseUpdate(
+    bs,
+    isInitial,
+    conn,
+  );
 
   // Target (always written)
   if (bs.readFlag()) {
@@ -1985,32 +2081,26 @@ function shockLanceProjectileUnpackUpdate(
 // ============================================================
 
 /**
- * Determine wheel count from a WheeledVehicleData shape name.
- * In standard Tribes 2, the only WheeledVehicle is the MPB/Jericho (6 wheels).
- * Wildcat and Beowulf are HoverVehicleData, NOT WheeledVehicleData.
- * wheelCount is computed at runtime from shape ground#/spring# node pairs.
- * Falls back to 6 (the only standard WheeledVehicle) if shape unknown.
+ * In standard Tribes 2, the only WheeledVehicleData is the MPB/Jericho
+ * (vehicle_land_mpbase.dts: Ground0-5 + Spring0-5), so the wheel section
+ * is always 6 entries. Wildcat and Beowulf are HoverVehicleData, NOT
+ * WheeledVehicleData. The engine computes the count at runtime from the
+ * shape's ground#/spring# node pairs; deriving it here from state
+ * accumulated in earlier packets (e.g. the create's dataBlockId) would
+ * desync parsers seeded mid-stream, which never parse the create.
  */
-function getWheelCountFromShape(shapeName: string | undefined): number {
-  if (!shapeName) return 6;
-  const lower = shapeName.toLowerCase();
-  // MPB (vehicle_land_mpbase.dts) has 6 wheels: Ground0-5 + Spring0-5
-  if (lower.includes("mpb") || lower.includes("mpbase")) return 6;
-  // Default to 6 for unknown shapes (standard T2 only has the MPB)
-  return 6;
-}
-
-/** Cache of dataBlockId → wheelCount for WheeledVehicle ghosts. */
-const wheelCountCache = new Map<number, number>();
-/** Cache of ghostIndex → wheelCount for WheeledVehicle updates (where dbId is absent). */
-const ghostWheelCountCache = new Map<number, number>();
+const WheeledVehicleWheelCount = 6;
 
 function wheeledVehicleUnpackUpdate(
   bs: BitStream,
   isInitial: boolean,
-  conn: ConnectionContext
+  conn: ConnectionContext,
 ): WheeledVehicleGhostData {
-  const result: WheeledVehicleGhostData = vehicleUnpackUpdate(bs, isInitial, conn);
+  const result: WheeledVehicleGhostData = vehicleUnpackUpdate(
+    bs,
+    isInitial,
+    conn,
+  );
 
   // Always read braking/wheels. Binary (FUN_00615a70) checks
   // param_1[0x2097]==in_ECX (GameConnection.mControlObject == this vehicle)
@@ -2020,41 +2110,8 @@ function wheeledVehicleUnpackUpdate(
     result.braking = bs.readFlag();
 
     if (bs.readFlag()) {
-      // Determine wheel count from the DataBlock's shape name.
-      // On creates, dataBlockId is available (DataBlockMask set).
-      // On updates, use ghost-index cache populated during create.
-      let wheelCount = 4;
-      const dbId = result.dataBlockId;
-      const ghostIdx = conn.currentGhostIndex;
-
-      if (dbId !== undefined) {
-        const cached = wheelCountCache.get(dbId);
-        if (cached !== undefined) {
-          wheelCount = cached;
-        } else if (conn.getDataBlockData) {
-          const dbData = conn.getDataBlockData(dbId);
-          if (dbData) {
-            const shapeName = dbData.shapeName;
-            if (typeof shapeName === "string") {
-              wheelCount = getWheelCountFromShape(shapeName);
-            }
-            wheelCountCache.set(dbId, wheelCount);
-          }
-        }
-        // Cache by ghost index for future updates
-        if (ghostIdx !== undefined) {
-          ghostWheelCountCache.set(ghostIdx, wheelCount);
-        }
-      } else if (ghostIdx !== undefined) {
-        // UPDATE: look up by ghost index
-        const cached = ghostWheelCountCache.get(ghostIdx);
-        if (cached !== undefined) {
-          wheelCount = cached;
-        }
-      }
-
       const wheels: { avel: number; dy: number; dx: number }[] = [];
-      for (let i = 0; i < wheelCount; i++) {
+      for (let i = 0; i < WheeledVehicleWheelCount; i++) {
         wheels.push({
           avel: bs.readF32(),
           dy: bs.readF32(),
@@ -2075,7 +2132,7 @@ function wheeledVehicleUnpackUpdate(
 function triggerUnpackUpdate(
   bs: BitStream,
   _isInitial: boolean,
-  _conn: ConnectionContext
+  _conn: ConnectionContext,
 ): TriggerGhostData {
   // Trigger::unpackUpdate (0x0061bab0):
   // Parent chain reads 0 bits (confirmed via r2ghidra — the parent call at
@@ -2093,7 +2150,7 @@ function triggerUnpackUpdate(
 function physicalZoneUnpackUpdate(
   bs: BitStream,
   _isInitial: boolean,
-  _conn: ConnectionContext
+  _conn: ConnectionContext,
 ): PhysicalZoneGhostData {
   const result: PhysicalZoneGhostData = {};
 
@@ -2133,7 +2190,12 @@ function physicalZoneUnpackUpdate(
     if (numEdges > Math.floor(bs.getRemainingBits() / 128)) {
       throw new Error(`Invalid physicalZone edge count: ${numEdges}`);
     }
-    const edges: { face0: number; face1: number; vertex0: number; vertex1: number }[] = [];
+    const edges: {
+      face0: number;
+      face1: number;
+      vertex0: number;
+      vertex1: number;
+    }[] = [];
     for (let i = 0; i < numEdges; i++) {
       edges.push({
         face0: bs.readU32(),
@@ -2163,7 +2225,7 @@ function physicalZoneUnpackUpdate(
 function audioEmitterUnpackUpdate(
   bs: BitStream,
   _isInitial: boolean,
-  _conn: ConnectionContext
+  _conn: ConnectionContext,
 ): AudioEmitterGhostData {
   const result: AudioEmitterGhostData = {};
 
@@ -2279,9 +2341,13 @@ function audioEmitterUnpackUpdate(
 function stationFXPersonalUnpackUpdate(
   bs: BitStream,
   isInitial: boolean,
-  conn: ConnectionContext
+  conn: ConnectionContext,
 ): StationFXPersonalGhostData {
-  const result: StationFXPersonalGhostData = readGameBaseUpdate(bs, isInitial, conn);
+  const result: StationFXPersonalGhostData = readGameBaseUpdate(
+    bs,
+    isInitial,
+    conn,
+  );
 
   if (bs.readFlag()) {
     // InitialUpdateMask
@@ -2300,7 +2366,7 @@ function stationFXPersonalUnpackUpdate(
 function aiObjectiveUnpackUpdate(
   bs: BitStream,
   isInitial: boolean,
-  conn: ConnectionContext
+  conn: ConnectionContext,
 ): AIObjectiveGhostData {
   // AIObjective::unpackUpdate calls FUN_0066a8b0 (ShapeBase-derived),
   // then reads one additional flag.

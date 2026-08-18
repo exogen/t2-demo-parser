@@ -42,7 +42,6 @@ export class PacketParser {
   private registry: ClassRegistry;
   private ghostTracker: GhostTracker;
   private compressionPoint = { x: 0, y: 0, z: 0 };
-  private controlParserByGhostIndex = new Map<number, GhostParserEntry>();
   private dataBlockDataMap?: Map<number, ParsedData>;
   private lastSeqRecvdAtSend = new Array<number>(32).fill(0);
   private lastSeqRecvd = 0;
@@ -83,7 +82,12 @@ export class PacketParser {
       dataBlockDataMap?: Map<number, ParsedData>;
       connectionProtocolState?: ConnectionProtocolState;
       nextRecvEventSeq?: number;
-    }
+      compressionPoint?: { x: number; y: number; z: number };
+      pendingGuaranteedEvents?: Array<{
+        absoluteSequenceNumber: number;
+        event: NetEventInfo;
+      }>;
+    },
   ) {
     this.registry = registry;
     this.ghostTracker = ghostTracker;
@@ -93,6 +97,14 @@ export class PacketParser {
     }
     if (typeof options?.nextRecvEventSeq === "number") {
       this.nextRecvEventSeq = options.nextRecvEventSeq >>> 0;
+    }
+    if (options?.compressionPoint) {
+      this.compressionPoint = { ...options.compressionPoint };
+    }
+    if (options?.pendingGuaranteedEvents) {
+      this.pendingGuaranteedEvents = options.pendingGuaranteedEvents
+        .map((entry) => ({ ...entry }))
+        .sort((a, b) => a.absoluteSequenceNumber - b.absoluteSequenceNumber);
     }
   }
 
@@ -114,7 +126,8 @@ export class PacketParser {
       getDataBlockData: dbMap
         ? (objectId: number) => dbMap.get(objectId)
         : undefined,
-      getGhostParser: (classId: number) => this.registry.getGhostParser(classId),
+      getGhostParser: (classId: number) =>
+        this.registry.getGhostParser(classId),
     };
   }
 
@@ -134,6 +147,37 @@ export class PacketParser {
     this.connectSequence = state.connectSequence >>> 0;
     this.lastRecvAckAck = state.lastRecvAckAck >>> 0;
     this._connectionEstablished = state.connectionEstablished;
+  }
+
+  /**
+   * Export the current protocol window state. Together with
+   * `getNextRecvEventSeq`, `getPendingGuaranteedEvents`,
+   * `getCompressionPoint`, `getDataBlockDataMap`, and the ghost tracker
+   * contents, this captures all cross-packet parser state, so an
+   * identically seeded parser continues the stream in lockstep.
+   */
+  getConnectionProtocolState(): ConnectionProtocolState {
+    return {
+      lastSeqRecvdAtSend: this.lastSeqRecvdAtSend.slice(),
+      lastSeqRecvd: this.lastSeqRecvd,
+      highestAckedSeq: this.highestAckedSeq,
+      lastSendSeq: this.lastSendSeq,
+      ackMask: this.recvAckMask,
+      connectSequence: this.connectSequence,
+      lastRecvAckAck: this.lastRecvAckAck,
+      connectionEstablished: this._connectionEstablished,
+    };
+  }
+
+  getNextRecvEventSeq(): number {
+    return this.nextRecvEventSeq;
+  }
+
+  getPendingGuaranteedEvents(): Array<{
+    absoluteSequenceNumber: number;
+    event: NetEventInfo;
+  }> {
+    return this.pendingGuaranteedEvents.map((entry) => ({ ...entry }));
   }
 
   /**
@@ -161,9 +205,8 @@ export class PacketParser {
       return { accepted: false, dispatchData: false };
     }
 
-    let seqNumber = (
-      dnetHeader.seqNumber | (this.lastSeqRecvd & 0xffff_fe00)
-    ) >>> 0;
+    let seqNumber =
+      (dnetHeader.seqNumber | (this.lastSeqRecvd & 0xffff_fe00)) >>> 0;
     if (seqNumber < this.lastSeqRecvd) {
       seqNumber = (seqNumber + 0x200) >>> 0;
     }
@@ -171,9 +214,8 @@ export class PacketParser {
       return { accepted: false, dispatchData: false };
     }
 
-    let highestAck = (
-      dnetHeader.highestAck | (this.highestAckedSeq & 0xffff_fe00)
-    ) >>> 0;
+    let highestAck =
+      (dnetHeader.highestAck | (this.highestAckedSeq & 0xffff_fe00)) >>> 0;
     if (highestAck < this.highestAckedSeq) {
       highestAck = (highestAck + 0x200) >>> 0;
     }
@@ -187,10 +229,13 @@ export class PacketParser {
       this.recvAckMask = (this.recvAckMask | 1) >>> 0;
     }
 
-    for (let ackSeq = this.highestAckedSeq + 1; ackSeq <= highestAck; ackSeq++) {
-      const isAcked = (
-        dnetHeader.ackMask & (1 << ((highestAck - ackSeq) & 0x1f))
-      ) !== 0;
+    for (
+      let ackSeq = this.highestAckedSeq + 1;
+      ackSeq <= highestAck;
+      ackSeq++
+    ) {
+      const isAcked =
+        (dnetHeader.ackMask & (1 << ((highestAck - ackSeq) & 0x1f))) !== 0;
       if (isAcked) {
         this.lastRecvAckAck = this.lastSeqRecvdAtSend[ackSeq & 0x1f] >>> 0;
       }
@@ -260,13 +305,11 @@ export class PacketParser {
     // When an event can't be parsed, readEvents returns early and the
     // stream position is wrong — reading ghosts would produce garbage.
     const lastEvent = events[events.length - 1];
-    const eventsComplete =
-      !lastEvent || lastEvent.dataBitsEnd !== lastEvent.dataBitsStart;
+    const eventsComplete = !lastEvent?.failed;
 
     // 5. Ghosts (NetConnection::readPacket -> ghostReadPacket)
-    const ghostSectionStart = gameStateComplete && eventsComplete
-      ? bs.getCurPos()
-      : undefined;
+    const ghostSectionStart =
+      gameStateComplete && eventsComplete ? bs.getCurPos() : undefined;
     const ghosts =
       gameStateComplete && eventsComplete
         ? this.readGhosts(bs, dnetHeader.seqNumber)
@@ -274,7 +317,14 @@ export class PacketParser {
 
     bs.setStringBuffer(false);
 
-    return { dnetHeader, rateInfo, gameState, events, ghosts, ghostSectionStart };
+    return {
+      dnetHeader,
+      rateInfo,
+      gameState,
+      events,
+      ghosts,
+      ghostSectionStart,
+    };
   }
 
   /**
@@ -391,9 +441,12 @@ export class PacketParser {
         // writePacketData/readPacketData, so the control object is
         // always one of these two classes. We try candidates in order:
         //   1. Tracker classId (may be stale due to ghost index recycling)
-        //   2. Cached parser from previous successful parse of this index
-        //   3. Player (classId 25) — the normal control object
-        //   4. Camera (classId 4) — spectator mode
+        //   2. Player (classId 25) — the normal control object
+        //   3. Camera (classId 4) — spectator mode
+        // The candidate order must be a pure function of seeded state
+        // (the tracker) so that a parser seeded mid-stream makes the same
+        // choice as one that has followed the stream from the start —
+        // no history-derived caches here.
         const gIndex = bs.readInt(10);
         controlObjectGhostIndex = gIndex;
         controlObjectDataStart = bs.getCurPos();
@@ -403,9 +456,8 @@ export class PacketParser {
         const preferredEntry = ghost
           ? this.registry.getGhostParser(ghost.classId)
           : undefined;
-        const cachedEntry = this.controlParserByGhostIndex.get(gIndex);
         const playerEntry = this.registry.getGhostParser(25); // Player
-        const cameraEntry = this.registry.getGhostParser(4);  // Camera
+        const cameraEntry = this.registry.getGhostParser(4); // Camera
 
         // Build candidate list (deduplicated, only those with readPacketData)
         const candidates: GhostParserEntry[] = [];
@@ -417,7 +469,6 @@ export class PacketParser {
           candidates.push(entry);
         };
         addCandidate(preferredEntry);
-        addCandidate(cachedEntry);
         addCandidate(playerEntry);
         addCandidate(cameraEntry);
 
@@ -434,7 +485,6 @@ export class PacketParser {
 
             controlObjectData = data;
             controlObjectDataEnd = bs.getCurPos();
-            this.controlParserByGhostIndex.set(gIndex, entry);
             if (conn.compressionPoint !== this.compressionPoint) {
               this.compressionPoint = conn.compressionPoint;
               compressionPoint = this.compressionPoint;
@@ -516,7 +566,8 @@ export class PacketParser {
       controlObjectDataEnd,
       controlObjectData,
       compressionPoint,
-      targetVisibility: targetVisibility.length > 0 ? targetVisibility : undefined,
+      targetVisibility:
+        targetVisibility.length > 0 ? targetVisibility : undefined,
       cameraFov,
     };
   }
@@ -587,6 +638,7 @@ export class PacketParser {
             absoluteSequenceNumber,
             dataBitsStart,
             dataBitsEnd: dataBitsStart,
+            failed: true,
           });
           return dispatchedEvents;
         }
@@ -599,6 +651,7 @@ export class PacketParser {
           absoluteSequenceNumber,
           dataBitsStart,
           dataBitsEnd: dataBitsStart,
+          failed: true,
         });
         return dispatchedEvents;
       }
@@ -628,7 +681,7 @@ export class PacketParser {
 
   private enqueueGuaranteedEvent(
     absoluteSequenceNumber: number,
-    event: NetEventInfo
+    event: NetEventInfo,
   ): void {
     let insertAt = 0;
     while (
@@ -669,11 +722,16 @@ export class PacketParser {
 
     if (eventType === "GhostingMessageEvent") {
       const message = parsedData.message;
-      // Tribes 2 handleGhostMessage: EndGhosting clears all local ghosts
-      // and invalidates all datablocks (they get re-sent for the new mission).
+      // Tribes 2 handleGhostMessage EndGhosting (netGhost.cc:706) deletes
+      // ONLY local ghosts. Datablocks are connection-lifetime state and
+      // must be retained: the server's transmitDataBlocks skips datablocks
+      // already sent on this connection (gameConnection.cc
+      // cTransmitDataBlocks: only modifiedKey > mDataBlockModifiedKey is
+      // re-sent), so on a mission change most datablocks are NOT re-sent
+      // and clearing the map here leaves the new mission's ghosts
+      // unresolvable.
       if (typeof message === "number" && message === GhostMsgEndGhosting) {
         this.ghostTracker.clear();
-        this.dataBlockDataMap?.clear();
       }
       return;
     }
@@ -686,19 +744,16 @@ export class PacketParser {
         this.ghostTracker.createGhost(
           ghostIndex,
           classId,
-          parserEntry?.name ?? `unknown_${classId}`
+          parserEntry?.name ?? `unknown_${classId}`,
         );
       }
     }
 
-    // SimDataBlockEvent: store parsed DataBlock data so ghost parsers
-    // (e.g., WheeledVehicle wheel count) can look it up by objectId.
+    // SimDataBlockEvent: accumulate parsed DataBlock data by objectId
+    // (exported for seeding and consumed by downstream renderers).
     if (eventType === "SimDataBlockEvent" && this.dataBlockDataMap) {
       const dbEvent = parsedData as SimDataBlockEventData;
-      if (
-        dbEvent.dataBlockData &&
-        typeof dbEvent.objectId === "number"
-      ) {
+      if (dbEvent.dataBlockData && typeof dbEvent.objectId === "number") {
         this.dataBlockDataMap.set(dbEvent.objectId, dbEvent.dataBlockData);
       }
     }
@@ -754,9 +809,10 @@ export class PacketParser {
       }
 
       const updateBitsStart = bs.getCurPos();
-      const parserEntry = classId !== undefined
-        ? this.registry.getGhostParser(classId)
-        : undefined;
+      const parserEntry =
+        classId !== undefined
+          ? this.registry.getGhostParser(classId)
+          : undefined;
 
       // Detect tracker divergence: we think this is a new ghost (not in our
       // tracker) but the classId is unregistered. This almost certainly means
@@ -768,9 +824,14 @@ export class PacketParser {
         this.ghostsTrackerDiverged++;
         debugGhosts(
           "DIVERGED pkt=%d seq=%d idx=%d classId=%d bit=%d/%d trackerSize=%d " +
-          "(server sent UPDATE for ghost not in our tracker; 7-bit classId is actually update data)",
-          this.packetsParsed, seqNumber, index, classId,
-          updateBitsStart, bs.getMaxPos(), this.ghostTracker.size()
+            "(server sent UPDATE for ghost not in our tracker; 7-bit classId is actually update data)",
+          this.packetsParsed,
+          seqNumber,
+          index,
+          classId,
+          updateBitsStart,
+          bs.getMaxPos(),
+          this.ghostTracker.size(),
         );
         ghosts.push({
           index,
@@ -813,9 +874,17 @@ export class PacketParser {
           const message = e instanceof Error ? e.message : String(e);
           debugGhosts(
             "FAIL pkt=%d seq=%d #%d idx=%d op=%s classId=%d parser=%s bit=%d/%d trackerSize=%d err=%s",
-            this.packetsParsed, seqNumber, ghosts.length, index, op, classId,
-            parserEntry.name, updateBitsStart, bs.getMaxPos(),
-            this.ghostTracker.size(), message
+            this.packetsParsed,
+            seqNumber,
+            ghosts.length,
+            index,
+            op,
+            classId,
+            parserEntry.name,
+            updateBitsStart,
+            bs.getMaxPos(),
+            this.ghostTracker.size(),
+            message,
           );
         }
       }
@@ -824,8 +893,14 @@ export class PacketParser {
 
       debugGhosts(
         "STOP pkt=%d seq=%d idx=%d op=%s classId=%d parser=%s bit=%d/%d",
-        this.packetsParsed, seqNumber, index, isNew ? "create" : "update",
-        classId, parserEntry?.name ?? "NONE", updateBitsStart, bs.getMaxPos()
+        this.packetsParsed,
+        seqNumber,
+        index,
+        isNew ? "create" : "update",
+        classId,
+        parserEntry?.name ?? "NONE",
+        updateBitsStart,
+        bs.getMaxPos(),
       );
 
       // Record and stop — can't parse this ghost's data.

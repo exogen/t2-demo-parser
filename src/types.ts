@@ -48,60 +48,60 @@ export const SimDBEventTotalBits = 12;
 // Index N in this array corresponds to classId N (group-local) or
 // classId N+128 (V12 global format).
 export const DataBlockClassNames: readonly string[] = [
-  "AudioDescription",         // 0 / 128
-  "AudioEnvironment",         // 1 / 129
-  "AudioProfile",             // 2 / 130
-  "AudioSampleEnvironment",   // 3 / 131
-  "BombProjectileData",       // 4 / 132
-  "CameraData",               // 5 / 133
-  "CannedChatItem",           // 6 / 134
-  "CommanderIconData",        // 7 / 135
-  "DebrisData",               // 8 / 136
-  "DecalData",                // 9 / 137
-  "ELFProjectileData",        // 10 / 138
-  "EffectProfile",            // 11 / 139
-  "EnergyProjectileData",     // 12 / 140
-  "ExplosionData",            // 13 / 141
-  "FireballAtmosphereData",   // 14 / 142
-  "FlareProjectileData",      // 15 / 143
-  "FlyingVehicleData",        // 16 / 144
-  "ForceFieldBareData",       // 17 / 145
-  "GameBaseData",             // 18 / 146
-  "GrenadeProjectileData",    // 19 / 147
-  "HoverVehicleData",         // 20 / 148
-  "ItemData",                 // 21 / 149
-  "JetEffectData",            // 22 / 150
-  "LightningData",            // 23 / 151
-  "LinearFlareProjectileData",// 24 / 152
-  "LinearProjectileData",     // 25 / 153
-  "MissionMarkerData",        // 26 / 154
-  "ParticleData",             // 27 / 155
-  "ParticleEmissionDummyData",// 28 / 156
-  "ParticleEmitterData",      // 29 / 157
-  "PlayerData",               // 30 / 158
-  "PrecipitationData",        // 31 / 159
-  "ProjectileData",           // 32 / 160
-  "RepairProjectileData",     // 33 / 161
-  "RunningLightData",         // 34 / 162
-  "SeekerProjectileData",     // 35 / 163
-  "SensorData",               // 36 / 164
-  "ShapeBaseData",            // 37 / 165
-  "ShapeBaseImageData",       // 38 / 166
+  "AudioDescription", // 0 / 128
+  "AudioEnvironment", // 1 / 129
+  "AudioProfile", // 2 / 130
+  "AudioSampleEnvironment", // 3 / 131
+  "BombProjectileData", // 4 / 132
+  "CameraData", // 5 / 133
+  "CannedChatItem", // 6 / 134
+  "CommanderIconData", // 7 / 135
+  "DebrisData", // 8 / 136
+  "DecalData", // 9 / 137
+  "ELFProjectileData", // 10 / 138
+  "EffectProfile", // 11 / 139
+  "EnergyProjectileData", // 12 / 140
+  "ExplosionData", // 13 / 141
+  "FireballAtmosphereData", // 14 / 142
+  "FlareProjectileData", // 15 / 143
+  "FlyingVehicleData", // 16 / 144
+  "ForceFieldBareData", // 17 / 145
+  "GameBaseData", // 18 / 146
+  "GrenadeProjectileData", // 19 / 147
+  "HoverVehicleData", // 20 / 148
+  "ItemData", // 21 / 149
+  "JetEffectData", // 22 / 150
+  "LightningData", // 23 / 151
+  "LinearFlareProjectileData", // 24 / 152
+  "LinearProjectileData", // 25 / 153
+  "MissionMarkerData", // 26 / 154
+  "ParticleData", // 27 / 155
+  "ParticleEmissionDummyData", // 28 / 156
+  "ParticleEmitterData", // 29 / 157
+  "PlayerData", // 30 / 158
+  "PrecipitationData", // 31 / 159
+  "ProjectileData", // 32 / 160
+  "RepairProjectileData", // 33 / 161
+  "RunningLightData", // 34 / 162
+  "SeekerProjectileData", // 35 / 163
+  "SensorData", // 36 / 164
+  "ShapeBaseData", // 37 / 165
+  "ShapeBaseImageData", // 38 / 166
   "ShockLanceProjectileData", // 39 / 167
-  "ShockwaveData",            // 40 / 168
-  "SimDataBlock",             // 41 / 169
-  "SniperProjectileData",     // 42 / 170
-  "SplashData",               // 43 / 171
-  "StaticShapeData",          // 44 / 172
-  "StationFXPersonalData",    // 45 / 173
-  "StationFXVehicleData",     // 46 / 174
-  "TSShapeConstructor",       // 47 / 175
-  "TargetProjectileData",     // 48 / 176
-  "TracerProjectileData",     // 49 / 177
-  "TriggerData",              // 50 / 178
-  "TurretData",               // 51 / 179
-  "TurretImageData",          // 52 / 180
-  "WheeledVehicleData",       // 53 / 181
+  "ShockwaveData", // 40 / 168
+  "SimDataBlock", // 41 / 169
+  "SniperProjectileData", // 42 / 170
+  "SplashData", // 43 / 171
+  "StaticShapeData", // 44 / 172
+  "StationFXPersonalData", // 45 / 173
+  "StationFXVehicleData", // 46 / 174
+  "TSShapeConstructor", // 47 / 175
+  "TargetProjectileData", // 48 / 176
+  "TracerProjectileData", // 49 / 177
+  "TriggerData", // 50 / 178
+  "TurretData", // 51 / 179
+  "TurretImageData", // 52 / 180
+  "WheeledVehicleData", // 53 / 181
 ] as const;
 
 // Deterministic NetObject (ghost) class name mapping, derived from machine code
@@ -112,59 +112,59 @@ export const DataBlockClassNames: readonly string[] = [
 // Verified against decompiled FUN_00423cb0 class table initialization.
 // Vehicle is NOT a ghost class (classGroup=0xFFFFFFFF in binary).
 export const NetObjectClassNames: readonly string[] = [
-  "AIObjective",            // 0
-  "AudioEmitter",           // 1
-  "BeaconObject",           // 2
-  "BombProjectile",         // 3
-  "Camera",                 // 4
-  "Debris",                 // 5
-  "ELFProjectile",          // 6
-  "EnergyProjectile",       // 7
-  "FireballAtmosphere",     // 8
-  "FlareProjectile",        // 9
-  "FlyingVehicle",          // 10
-  "ForceFieldBare",         // 11
-  "GameBase",               // 12
-  "GrenadeProjectile",      // 13
-  "HoverVehicle",           // 14
-  "InteriorInstance",       // 15
-  "Item",                   // 16
-  "Lightning",              // 17
-  "LinearFlareProjectile",  // 18
-  "LinearProjectile",       // 19
-  "Marker",                 // 20
-  "MissionArea",            // 21
-  "MissionMarker",          // 22
-  "ParticleEmissionDummy",  // 23
-  "PhysicalZone",           // 24
-  "Player",                 // 25
-  "Precipitation",          // 26
-  "Projectile",             // 27
-  "RepairProjectile",       // 28
-  "ScopeAlwaysShape",       // 29
-  "SeekerProjectile",       // 30
-  "ShapeBase",              // 31
-  "ShockLanceProjectile",   // 32
-  "Shockwave",              // 33
-  "SimpleNetObject",        // 34
-  "Sky",                    // 35
-  "SniperProjectile",       // 36
-  "SpawnSphere",            // 37
-  "Splash",                 // 38
-  "StaticShape",            // 39
-  "StationFXPersonal",      // 40
-  "StationFXVehicle",       // 41
-  "Sun",                    // 42
-  "TSStatic",               // 43
-  "TargetProjectile",       // 44
-  "TerrainBlock",           // 45
-  "TracerProjectile",       // 46
-  "Trigger",                // 47
-  "Turret",                 // 48
-  "VehicleBlocker",         // 49
-  "WaterBlock",             // 50
-  "WayPoint",               // 51
-  "WheeledVehicle",         // 52
+  "AIObjective", // 0
+  "AudioEmitter", // 1
+  "BeaconObject", // 2
+  "BombProjectile", // 3
+  "Camera", // 4
+  "Debris", // 5
+  "ELFProjectile", // 6
+  "EnergyProjectile", // 7
+  "FireballAtmosphere", // 8
+  "FlareProjectile", // 9
+  "FlyingVehicle", // 10
+  "ForceFieldBare", // 11
+  "GameBase", // 12
+  "GrenadeProjectile", // 13
+  "HoverVehicle", // 14
+  "InteriorInstance", // 15
+  "Item", // 16
+  "Lightning", // 17
+  "LinearFlareProjectile", // 18
+  "LinearProjectile", // 19
+  "Marker", // 20
+  "MissionArea", // 21
+  "MissionMarker", // 22
+  "ParticleEmissionDummy", // 23
+  "PhysicalZone", // 24
+  "Player", // 25
+  "Precipitation", // 26
+  "Projectile", // 27
+  "RepairProjectile", // 28
+  "ScopeAlwaysShape", // 29
+  "SeekerProjectile", // 30
+  "ShapeBase", // 31
+  "ShockLanceProjectile", // 32
+  "Shockwave", // 33
+  "SimpleNetObject", // 34
+  "Sky", // 35
+  "SniperProjectile", // 36
+  "SpawnSphere", // 37
+  "Splash", // 38
+  "StaticShape", // 39
+  "StationFXPersonal", // 40
+  "StationFXVehicle", // 41
+  "Sun", // 42
+  "TSStatic", // 43
+  "TargetProjectile", // 44
+  "TerrainBlock", // 45
+  "TracerProjectile", // 46
+  "Trigger", // 47
+  "Turret", // 48
+  "VehicleBlocker", // 49
+  "WaterBlock", // 50
+  "WayPoint", // 51
+  "WheeledVehicle", // 52
 ] as const;
 
 // Deterministic NetEvent class name mapping, derived from machine code
@@ -173,40 +173,40 @@ export const NetObjectClassNames: readonly string[] = [
 // is how AbstractClassRep::initialize assigns sequential classIds.
 // Index N in this array corresponds to classId NetEventClassFirst + N (255 + N).
 export const NetEventClassNames: readonly string[] = [
-  "CRCChallengeEvent",            // 0 / 255
-  "CRCChallengeResponseEvent",    // 1 / 256
-  "FogChallengeEvent",            // 2 / 257
-  "GhostAlwaysObjectEvent",       // 3 / 258
-  "GhostingMessageEvent",         // 4 / 259
-  "GravityEvent",                 // 5 / 260
-  "LightningStrikeEvent",         // 6 / 261
-  "NetStringEvent",               // 7 / 262
-  "PathManagerEvent",             // 8 / 263
-  "RemoteCommandEvent",           // 9 / 264
-  "RemoveClientTargetTypeEvent",  // 10 / 265
-  "ResetClientTargetsEvent",      // 11 / 266
-  "SensorGroupColorEvent",        // 12 / 267
-  "SetMissionCRCEvent",           // 13 / 268
-  "SetObjectActiveImageEvent",    // 14 / 269
-  "SetSensorGroupEvent",          // 15 / 270
-  "SetServerTargetEvent",         // 16 / 271
-  "Sim2DAudioEvent",              // 17 / 272
-  "Sim3DAudioEvent",              // 18 / 273
-  "SimDataBlockEvent",            // 19 / 274
-  "SimTargetAudioEvent",          // 20 / 275
-  "SimVoiceStreamEvent",          // 21 / 276
-  "SimpleMessageEvent",           // 22 / 277
-  "TargetFreeEvent",              // 23 / 278
-  "TargetInfoEvent",              // 24 / 279
-  "TargetToEvent",                // 25 / 280
+  "CRCChallengeEvent", // 0 / 255
+  "CRCChallengeResponseEvent", // 1 / 256
+  "FogChallengeEvent", // 2 / 257
+  "GhostAlwaysObjectEvent", // 3 / 258
+  "GhostingMessageEvent", // 4 / 259
+  "GravityEvent", // 5 / 260
+  "LightningStrikeEvent", // 6 / 261
+  "NetStringEvent", // 7 / 262
+  "PathManagerEvent", // 8 / 263
+  "RemoteCommandEvent", // 9 / 264
+  "RemoveClientTargetTypeEvent", // 10 / 265
+  "ResetClientTargetsEvent", // 11 / 266
+  "SensorGroupColorEvent", // 12 / 267
+  "SetMissionCRCEvent", // 13 / 268
+  "SetObjectActiveImageEvent", // 14 / 269
+  "SetSensorGroupEvent", // 15 / 270
+  "SetServerTargetEvent", // 16 / 271
+  "Sim2DAudioEvent", // 17 / 272
+  "Sim3DAudioEvent", // 18 / 273
+  "SimDataBlockEvent", // 19 / 274
+  "SimTargetAudioEvent", // 20 / 275
+  "SimVoiceStreamEvent", // 21 / 276
+  "SimpleMessageEvent", // 22 / 277
+  "TargetFreeEvent", // 23 / 278
+  "TargetInfoEvent", // 24 / 279
+  "TargetToEvent", // 25 / 280
 ] as const;
 
 // Block types in the U16 packed format (type = typeSize >> 12)
 // These are from TorqueSDK-style recordBlock/handleRecordedBlock
-export const BlockTypePacket = 0;     // Received network packet (dnet data)
+export const BlockTypePacket = 0; // Received network packet (dnet data)
 export const BlockTypeSendPacket = 1; // SendPacket trigger (size=0, no data)
-export const BlockTypeMove = 2;       // Raw Move struct (64 bytes)
-export const BlockTypeInfo = 3;       // Info block (8 bytes: U32 + F32)
+export const BlockTypeMove = 2; // Raw Move struct (64 bytes)
+export const BlockTypeInfo = 3; // Info block (8 bytes: U32 + F32)
 
 // Packet types from dnet
 export const DataPacket = 0;
@@ -279,6 +279,9 @@ export interface NetEventInfo {
   dataBitsStart: number;
   dataBitsEnd: number;
   parsedData?: ParsedData;
+  /** Set when the event could not be parsed (unknown class or parser
+   *  threw), leaving the stream position unreliable. */
+  failed?: boolean;
 }
 
 export interface PacketData {
@@ -386,7 +389,12 @@ export interface TargetEntry {
 
 export interface PathManagerEntry {
   entryId: number;
-  records: { field0: number; field1: number; field2: number; auxField: number }[];
+  records: {
+    field0: number;
+    field1: number;
+    field2: number;
+    auxField: number;
+  }[];
 }
 
 export interface InitialBlockData {
@@ -413,6 +421,10 @@ export interface InitialBlockData {
   initialEvents: NetEventInfo[];
   controlObjectGhostIndex: number;
   controlObjectData?: ParsedData;
+  /** Compression point established by the control object's readPacketData
+   *  (its position), used to decode compressed points in packets that
+   *  precede the first in-stream compression-point update. */
+  initialCompressionPoint?: { x: number; y: number; z: number };
   missionName: string;
   missionCRC: number;
   phase2TrailingBits?: number;

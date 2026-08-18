@@ -1,8 +1,10 @@
 # t2-demo-parser
 
-Parser for Tribes 2 demo recordings (`.rec` files). Extracts game state, player
-movement, ghost object lifecycles, network events, and animation timelines from
-recordings made by the Tribes 2 client (build 25034, Torque engine).
+Parser for Tribes 2 demo recordings (`.rec` files) and live server packet
+streams. Extracts game state, player movement, ghost object lifecycles,
+network events, and animation timelines from recordings made by the Tribes 2
+client (build 25034, Torque engine), and parses the same packet format
+arriving from a live connection (see `createLiveParser`).
 
 Designed for use in browser-based replay viewers. The async API keeps the main
 thread responsive: in browsers, decompression runs in a Web Worker via
@@ -18,14 +20,14 @@ const buffer = new Uint8Array(/* .rec file contents */);
 const parser = new DemoParser(buffer);
 const demo = await parser.parseFullDemo();
 
-console.log(demo.header.demoLengthMs);           // Duration in ms
-console.log(demo.initialBlock.missionName);       // e.g. "Rollercoaster"
-console.log(demo.blocks.length);                  // Total block count
-console.log(demo.initialBlock.dataBlocks.size);   // DataBlock definitions
+console.log(demo.header.demoLengthMs); // Duration in ms
+console.log(demo.initialBlock.missionName); // e.g. "Rollercoaster"
+console.log(demo.blocks.length); // Total block count
+console.log(demo.initialBlock.dataBlocks.size); // DataBlock definitions
 
 const timeline = buildTimeline(demo, parser.getRegistry());
-console.log(timeline.controlObject.length);       // Player position keyframes
-console.log(timeline.ghostInstances.length);      // Networked object lifecycles
+console.log(timeline.controlObject.length); // Player position keyframes
+console.log(timeline.ghostInstances.length); // Networked object lifecycles
 ```
 
 ## CLI
@@ -124,21 +126,21 @@ interface DemoFile {
 
 #### Properties
 
-| Property | Type | Description |
-|---|---|---|
-| `loaded` | `boolean` | Whether `load()` has been called. |
-| `header` | `DemoHeader` | File header (throws if not loaded). |
-| `initialBlock` | `InitialBlockData` | Initial game state (throws if not loaded). |
-| `blockCount` | `number` | Total blocks in the stream. Lazily computed on first access by scanning the decompressed buffer. |
-| `blockCursor` | `number` | Number of blocks consumed so far. |
+| Property       | Type               | Description                                                                                      |
+| -------------- | ------------------ | ------------------------------------------------------------------------------------------------ |
+| `loaded`       | `boolean`          | Whether `load()` has been called.                                                                |
+| `header`       | `DemoHeader`       | File header (throws if not loaded).                                                              |
+| `initialBlock` | `InitialBlockData` | Initial game state (throws if not loaded).                                                       |
+| `blockCount`   | `number`           | Total blocks in the stream. Lazily computed on first access by scanning the decompressed buffer. |
+| `blockCursor`  | `number`           | Number of blocks consumed so far.                                                                |
 
 #### Accessors
 
-| Method | Returns | Description |
-|---|---|---|
-| `getRegistry()` | `ClassRegistry` | Parser registry with all bindings. |
-| `getGhostTracker()` | `GhostTracker` | Current ghost state (mutated by `nextBlock()`). |
-| `getPacketParser()` | `PacketParser` | Packet parser with parse statistics. |
+| Method              | Returns         | Description                                     |
+| ------------------- | --------------- | ----------------------------------------------- |
+| `getRegistry()`     | `ClassRegistry` | Parser registry with all bindings.              |
+| `getGhostTracker()` | `GhostTracker`  | Current ghost state (mutated by `nextBlock()`). |
+| `getPacketParser()` | `PacketParser`  | Packet parser with parse statistics.            |
 
 ---
 
@@ -146,10 +148,10 @@ interface DemoFile {
 
 ```typescript
 interface DemoHeader {
-  identString: string;        // "Tribes2 Recording"
-  protocolVersion: number;    // 0x330004
-  demoLengthMs: number;       // Total recording duration in milliseconds
-  initialBlockSize: number;   // Byte size of the initial block
+  identString: string; // "Tribes2 Recording"
+  protocolVersion: number; // 0x330004
+  demoLengthMs: number; // Total recording duration in milliseconds
+  initialBlockSize: number; // Byte size of the initial block
 }
 ```
 
@@ -162,7 +164,7 @@ Snapshot of the game state at the moment recording started.
 ```typescript
 interface InitialBlockData {
   // DataBlocks (static game definitions)
-  dataBlocks: Map<number, ParsedDataBlock>;   // objectId → parsed DataBlock
+  dataBlocks: Map<number, ParsedDataBlock>; // objectId → parsed DataBlock
   dataBlockCount: number;
   dataBlockHeaders: DataBlockHeader[];
 
@@ -181,8 +183,11 @@ interface InitialBlockData {
   initialEvents: NetEventInfo[];
 
   // Control object (the recording player)
-  controlObjectGhostIndex: number;    // -1 if none
+  controlObjectGhostIndex: number; // -1 if none
   controlObjectData?: Record<string, unknown>;
+  // Compression point established by the control object's state (its
+  // position), seeding compressed-point decodes in the first packets.
+  initialCompressionPoint?: { x: number; y: number; z: number };
   firstPerson: boolean;
 
   // Mission info
@@ -215,10 +220,10 @@ A single block from the compressed block stream.
 ```typescript
 interface DemoBlock {
   index: number;
-  type: number;       // BlockTypePacket (0), BlockTypeSendPacket (1),
-                      // BlockTypeMove (2), or BlockTypeInfo (3)
-  size: number;       // Payload size in bytes
-  data: Uint8Array;   // Raw payload
+  type: number; // BlockTypePacket (0), BlockTypeSendPacket (1),
+  // BlockTypeMove (2), or BlockTypeInfo (3)
+  size: number; // Payload size in bytes
+  data: Uint8Array; // Raw payload
   parsed?: PacketData | Move | InfoBlock;
 }
 ```
@@ -251,6 +256,8 @@ interface GameState {
   pinged: boolean;
   jammed: boolean;
   controlObjectGhostIndex?: number;
+  controlObjectDataStart?: number; // Bit offsets of the control object
+  controlObjectDataEnd?: number; // update within the packet
   controlObjectData?: Record<string, unknown>;
   compressionPoint?: { x: number; y: number; z: number };
   cameraFov?: number;
@@ -273,12 +280,12 @@ A create, update, or delete operation on a ghost object.
 
 ```typescript
 interface GhostUpdate {
-  index: number;                          // Ghost slot (0–1023)
+  index: number; // Ghost slot (0–1023)
   type: "create" | "update" | "delete";
-  classId?: number;                       // Set on create
+  classId?: number; // Set on create
   updateBitsStart: number;
   updateBitsEnd: number;
-  parsedData?: Record<string, unknown>;   // Class-specific parsed fields
+  parsedData?: Record<string, unknown>; // Class-specific parsed fields
 }
 ```
 
@@ -290,10 +297,13 @@ A network event received from the server.
 interface NetEventInfo {
   classId: number;
   guaranteed: boolean;
-  sequenceNumber?: number;
+  sequenceNumber?: number; // 7-bit wire sequence (guaranteed events)
+  absoluteSequenceNumber?: number; // Unwrapped full sequence
   dataBitsStart: number;
   dataBitsEnd: number;
   parsedData?: Record<string, unknown>;
+  failed?: boolean; // Event could not be parsed; stream
+  // position after it is unreliable
 }
 ```
 
@@ -305,14 +315,24 @@ Raw 64-byte player input struct (from type 2 blocks).
 
 ```typescript
 interface Move {
-  x: number; y: number; z: number;           // Acceleration
-  yaw: number; pitch: number; roll: number;   // Rotation
-  px: number; py: number; pz: number;         // Previous acceleration
-  pyaw: number; ppitch: number; proll: number;
+  x: number;
+  y: number;
+  z: number; // Movement input per axis (float)
+  yaw: number;
+  pitch: number;
+  roll: number; // Rotation deltas in radians
+  // (server adds them each tick)
+  px: number;
+  py: number;
+  pz: number; // Packed integer forms of x/y/z
+  pyaw: number;
+  ppitch: number;
+  proll: number; // Packed rotation: fractional
+  // turns × 65536 (16-bit range)
   id: number;
   sendCount: number;
   freeLook: boolean;
-  trigger: boolean[];   // 6 trigger keys (fire, jet, jump, etc.)
+  trigger: boolean[]; // 6 trigger keys (fire, jet, jump, etc.)
 }
 ```
 
@@ -325,9 +345,9 @@ A static game object definition parsed from the initial block.
 ```typescript
 interface ParsedDataBlock {
   classId: number;
-  className: string;      // e.g. "PlayerData", "WheeledVehicleData"
+  className: string; // e.g. "PlayerData", "WheeledVehicleData"
   objectId: number;
-  data: Record<string, unknown>;  // Class-specific fields (shapeName, etc.)
+  data: Record<string, unknown>; // Class-specific fields (shapeName, etc.)
 }
 ```
 
@@ -375,7 +395,11 @@ with position data are included.
 interface ExportTimeline {
   durationMs: number;
   tickIntervalMs: number;
-  controlObject: { t: number; p?: [number, number, number]; v?: [number, number, number] }[];
+  controlObject: {
+    t: number;
+    p?: [number, number, number];
+    v?: [number, number, number];
+  }[];
   ghosts: ExportGhostInstance[];
   events: GameEvent[];
 }
@@ -439,22 +463,40 @@ interface ControlObjectKeyframe {
 
 Available via `parser.getPacketParser()`. Exposes parse statistics.
 
-| Property | Type | Description |
-|---|---|---|
-| `packetsParsed` | `number` | Total packets successfully parsed. |
-| `ghostCreatesParsed` | `number` | Ghost create operations parsed. |
-| `ghostUpdatesParsed` | `number` | Ghost update operations parsed. |
-| `ghostDeletes` | `number` | Ghost delete operations. |
-| `ghostsFailed` | `number` | Ghost operations that failed to parse. |
-| `ghostsTrackerDiverged` | `number` | Ghost tracker inconsistencies detected. |
-| `eventsParsed` | `number` | Events parsed. |
-| `eventsFailed` | `number` | Events that failed to parse. |
-| `controlObjectParsed` | `number` | Control object updates parsed. |
-| `controlObjectFailed` | `number` | Control object updates that failed. |
+| Property                | Type     | Description                                                     |
+| ----------------------- | -------- | --------------------------------------------------------------- |
+| `packetsParsed`         | `number` | Total packets successfully parsed.                              |
+| `ghostCreatesParsed`    | `number` | Ghost create operations parsed.                                 |
+| `ghostUpdatesParsed`    | `number` | Ghost update operations parsed.                                 |
+| `ghostDeletes`          | `number` | Ghost delete operations.                                        |
+| `ghostsFailed`          | `number` | Ghost operations that failed to parse.                          |
+| `ghostsTrackerDiverged` | `number` | Ghost tracker inconsistencies detected.                         |
+| `eventsParsed`          | `number` | Events parsed.                                                  |
+| `eventsFailed`          | `number` | Events that failed to parse.                                    |
+| `controlObjectParsed`   | `number` | Control object updates parsed.                                  |
+| `controlObjectFailed`   | `number` | Control object updates that failed.                             |
+| `protocolRejected`      | `number` | Packets rejected by the dnet protocol window.                   |
+| `protocolNoDispatch`    | `number` | Packets accepted but not dispatched (duplicates/out-of-window). |
+
+#### State export (for seeding another parser)
+
+These getters capture **all cross-packet parser state**, so a second parser
+seeded with the same values (plus the ghost tracker contents and datablock
+map) continues the stream in bit-lockstep with this one — the basis for
+late-joiner catch-up in live streaming.
+
+| Method                              | Returns                                          |
+| ----------------------------------- | ------------------------------------------------ |
+| `getConnectionProtocolState()`      | `ConnectionProtocolState` (dnet sequence window) |
+| `getNextRecvEventSeq()`             | `number`                                         |
+| `getPendingGuaranteedEvents()`      | Out-of-order guaranteed events awaiting dispatch |
+| `getCompressionPoint()`             | `{ x, y, z }`                                    |
+| `getDataBlockDataMap()`             | `Map<number, ParsedData> \| undefined`           |
+| `setConnectionProtocolState(state)` | — (also a constructor option)                    |
 
 ---
 
-### `createLiveParser(): LiveParserKit`
+### `createLiveParser(seed?): LiveParserKit`
 
 Create a parser stack for live server connections. Sets up the same deterministic
 registry bindings as `DemoParser` but without requiring a `.rec` file. Useful for
@@ -474,6 +516,69 @@ interface LiveParserKit {
   packetParser: PacketParser;
 }
 ```
+
+With a **seed**, the stack resumes an in-progress stream from another
+parser's exported state, continuing at a packet boundary in bit-lockstep
+with the exporter (the late-joiner catch-up scenario — see
+`GhostStateAccumulator` below for producing the ghost seeds):
+
+```typescript
+interface LiveParserSeed {
+  dataBlocks?: Iterable<[number, ParsedData]>; // objectId → parsed datablock
+  ghosts?: Iterable<{ index: number; classId: number }>;
+  connectionProtocolState?: ConnectionProtocolState;
+  nextRecvEventSeq?: number;
+  compressionPoint?: { x: number; y: number; z: number };
+  pendingGuaranteedEvents?: Array<{
+    absoluteSequenceNumber: number;
+    event: NetEventInfo;
+  }>;
+}
+```
+
+### `passiveObserverProtocolState(firstPacketByte): ConnectionProtocolState`
+
+Protocol state for a parser that passively observes the server→client
+stream while something else (e.g. a relay) owns the client→server side.
+Sets `lastSendSeq` high so ack validation never rejects packets that ack
+sequences the observer didn't send. Intended for the first packets of a
+connection; to attach mid-stream, seed `connectionProtocolState` from the
+exporting parser instead.
+
+```typescript
+import { createLiveParser, passiveObserverProtocolState } from "t2-demo-parser";
+
+const { packetParser } = createLiveParser();
+// On the first received packet:
+packetParser.setConnectionProtocolState(passiveObserverProtocolState(data[0]));
+```
+
+---
+
+### `GhostStateAccumulator`
+
+Maintains one merged full `parsedData` per live ghost by folding each
+packet's creates/updates/deletes (plus `GhostAlwaysObjectEvent` creates and
+EndGhosting clears). `toInitialGhosts()` yields entries shaped like a demo
+recording's `initialGhosts` — the full-state ghost list a `.rec` starts
+with when recorded mid-match — for hydrating a late joiner.
+
+```typescript
+import { GhostStateAccumulator, mergeGhostParsedData } from "t2-demo-parser";
+
+const accumulator = new GhostStateAccumulator();
+// After each parsed packet:
+accumulator.applyPacket(packetData);
+
+accumulator.toInitialGhosts(); // GhostUpdate[] with full merged parsedData
+accumulator.getGhostSeeds(); // { index, classId }[] for createLiveParser
+accumulator.size();
+accumulator.clear();
+```
+
+`mergeGhostParsedData(base, update)` is the underlying merge rule: arrays
+whose entries carry a numeric `index` (threads, images, sounds) merge
+sparsely by index; other values are last-write-wins.
 
 ---
 
@@ -500,9 +605,9 @@ Tracks the live state of all ghost objects. Available via
 
 ```typescript
 const tracker = parser.getGhostTracker();
-const ghost = tracker.getGhost(index);  // GhostEntry | undefined
-const all = tracker.getAllGhosts();      // Map<number, GhostEntry>
-tracker.size();                          // Number of active ghosts
+const ghost = tracker.getGhost(index); // GhostEntry | undefined
+const all = tracker.getAllGhosts(); // Map<number, GhostEntry>
+tracker.size(); // Number of active ghosts
 ```
 
 ```typescript
@@ -521,10 +626,10 @@ Block type constants for filtering `DemoBlock.type`:
 
 ```typescript
 import {
-  BlockTypePacket,       // 0 — network packet
-  BlockTypeSendPacket,   // 1 — send-packet trigger (no data)
-  BlockTypeMove,         // 2 — 64-byte player input
-  BlockTypeInfo,         // 3 — 8-byte timing/FOV
+  BlockTypePacket, // 0 — network packet
+  BlockTypeSendPacket, // 1 — send-packet trigger (no data)
+  BlockTypeMove, // 2 — 64-byte player input
+  BlockTypeInfo, // 3 — 8-byte timing/FOV
 } from "t2-demo-parser";
 ```
 
@@ -532,20 +637,22 @@ Network protocol constants are also exported:
 
 ```typescript
 import {
-  MaxGhostCount,            // 1024
-  GhostIdBitSize,           // 10
+  MaxGhostCount, // 1024
+  GhostIdBitSize, // 10
   NetStringTableMaxStrings, // 4096
-  StringIdBitSize,          // 12
-  NetEventClassBitSize,     // 6
-  NetEventClassFirst,       // 255
-  NetObjectClassBitSize,    // 7
-  NetObjectClassFirst,      // 0
-  MaxPacketDataSize,        // 1500
-  MaxTriggerKeys,           // 6
-  DataBlockObjectIdFirst,   // 3
+  StringIdBitSize, // 12
+  NetEventClassBitSize, // 6
+  NetEventClassFirst, // 255
+  NetObjectClassBitSize, // 7
+  NetObjectClassFirst, // 0
+  MaxPacketDataSize, // 1500
+  MaxTriggerKeys, // 6
+  MoveCountBits, // 5
+  MaxMoveCount, // 30
+  DataBlockObjectIdFirst, // 3
   DataBlockObjectIdBitSize, // 10
-  DataBlockClassFirst,      // 128
-  DataBlockClassBitSize,    // 7
+  DataBlockClassFirst, // 128
+  DataBlockClassBitSize, // 7
 } from "t2-demo-parser";
 ```
 
@@ -554,9 +661,9 @@ assignment order):
 
 ```typescript
 import {
-  NetObjectClassNames,   // 53 ghost class names
-  DataBlockClassNames,   // 54 DataBlock class names
-  NetEventClassNames,    // 26 event class names
+  NetObjectClassNames, // 53 ghost class names
+  DataBlockClassNames, // 54 DataBlock class names
+  NetEventClassNames, // 26 event class names
 } from "t2-demo-parser";
 ```
 
@@ -576,11 +683,14 @@ const { header, initialBlock } = await parser.load();
 
 // Duration
 const durationMs = header.demoLengthMs;
-const durationStr = `${Math.floor(durationMs / 60000)}m${
-  Math.floor((durationMs % 60000) / 1000).toString().padStart(2, "0")}s`;
+const durationStr = `${Math.floor(durationMs / 60000)}m${Math.floor(
+  (durationMs % 60000) / 1000,
+)
+  .toString()
+  .padStart(2, "0")}s`;
 
 // Mission / map name
-const mission = initialBlock.missionName;  // e.g. "Rollercoaster"
+const mission = initialBlock.missionName; // e.g. "Rollercoaster"
 
 // Game mode / mission type — look in DemoValues
 // $DemoValue_0 is typically the game mode (e.g. "CTFGame")
@@ -588,7 +698,9 @@ const gameMode = initialBlock.demoValues[0];
 
 // Teams and players
 for (const score of initialBlock.scoreEntries) {
-  console.log(`Team ${score.teamId}: client ${score.clientId}, score ${score.score}`);
+  console.log(
+    `Team ${score.teamId}: client ${score.clientId}, score ${score.score}`,
+  );
 }
 
 // Player names from the target table
@@ -650,10 +762,10 @@ function seekTo(targetMs: number) {
     if (block.type === BlockTypeMove) moveCount++;
     if (moveCount * 32 >= targetMs) break;
   }
-  return moveCount * 32;  // Actual time reached
+  return moveCount * 32; // Actual time reached
 }
 
-const actualMs = seekTo(60000);  // Seek to ~1 minute
+const actualMs = seekTo(60000); // Seek to ~1 minute
 // Ghost tracker now reflects state at that point.
 // Continue calling nextBlock() to play forward from here.
 ```
@@ -680,7 +792,9 @@ console.log(`${stats.ghostsWithPosition} with position data`);
 
 // Iterate ghost lifecycles
 for (const inst of timeline.ghostInstances) {
-  console.log(`${inst.className} #${inst.ghostIndex}: ${inst.keyframes.length} keyframes`);
+  console.log(
+    `${inst.className} #${inst.ghostIndex}: ${inst.keyframes.length} keyframes`,
+  );
   for (const kf of inst.keyframes) {
     if (kf.position) {
       // Feed into Three.js KeyframeTrack...
@@ -713,7 +827,7 @@ parser.reset();
 while (parser.nextBlock()) {}
 const stats2 = parser.getPacketParser().packetsParsed;
 
-console.log(stats1 === stats2);  // true
+console.log(stats1 === stats2); // true
 ```
 
 ### Access parse statistics
@@ -747,7 +861,7 @@ const registry = parser.getRegistry();
 // From a ghost update in a packet:
 if (ghost.type === "create" && ghost.classId !== undefined) {
   const entry = registry.getGhostParser(ghost.classId);
-  console.log(entry?.name);  // e.g. "Player", "Turret", "LinearProjectile"
+  console.log(entry?.name); // e.g. "Player", "Turret", "LinearProjectile"
 }
 
 // From the ghost tracker (live state):

@@ -68,7 +68,11 @@ export class DemoParser {
 
   constructor(buffer: Uint8Array) {
     this.buffer = buffer;
-    this.view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+    this.view = new DataView(
+      buffer.buffer,
+      buffer.byteOffset,
+      buffer.byteLength,
+    );
     this.offset = 0;
     this.registry = new ClassRegistry();
     this.ghostTracker = new GhostTracker();
@@ -85,12 +89,14 @@ export class DemoParser {
     const { bound: dbBound, missing: dbMissing } =
       this.registry.bindDeterministicDataBlocks(
         DataBlockClassNames,
-        DataBlockClassFirst
+        DataBlockClassFirst,
       );
     if (dbMissing.length > 0) {
       debug(
         "DataBlock binding: %d/%d bound, missing parsers: %s",
-        dbBound, DataBlockClassNames.length, dbMissing.join(", ")
+        dbBound,
+        DataBlockClassNames.length,
+        dbMissing.join(", "),
       );
     }
 
@@ -101,12 +107,14 @@ export class DemoParser {
     const { bound: ghostBound, missing: ghostMissing } =
       this.registry.bindDeterministicGhosts(
         NetObjectClassNames,
-        NetObjectClassFirst
+        NetObjectClassFirst,
       );
     if (ghostMissing.length > 0) {
       debug(
         "Ghost binding: %d/%d bound, missing parsers: %s",
-        ghostBound, NetObjectClassNames.length, ghostMissing.join(", ")
+        ghostBound,
+        NetObjectClassNames.length,
+        ghostMissing.join(", "),
       );
     }
 
@@ -117,12 +125,14 @@ export class DemoParser {
     const { bound: eventBound, missing: eventMissing } =
       this.registry.bindDeterministicEvents(
         NetEventClassNames,
-        NetEventClassFirst
+        NetEventClassFirst,
       );
     if (eventMissing.length > 0) {
       debug(
         "Event binding: %d/%d bound, missing parsers: %s",
-        eventBound, NetEventClassNames.length, eventMissing.join(", ")
+        eventBound,
+        NetEventClassNames.length,
+        eventMissing.join(", "),
       );
     }
 
@@ -203,14 +213,16 @@ export class DemoParser {
     const header = this.readHeader();
     debug(
       'header: "%s" version=0x%s length=%dms (%smin) initialBlockSize=%d',
-      header.identString, header.protocolVersion.toString(16),
-      header.demoLengthMs, (header.demoLengthMs / 1000 / 60).toFixed(1),
-      header.initialBlockSize
+      header.identString,
+      header.protocolVersion.toString(16),
+      header.demoLengthMs,
+      (header.demoLengthMs / 1000 / 60).toFixed(1),
+      header.initialBlockSize,
     );
 
     const initialBlockData = this.buffer.subarray(
       this.offset,
-      this.offset + header.initialBlockSize
+      this.offset + header.initialBlockSize,
     );
     const initialBlock = this.readInitialBlock(initialBlockData);
     this.offset += header.initialBlockSize;
@@ -219,19 +231,21 @@ export class DemoParser {
     const compressedData = this.buffer.subarray(this.offset);
     debug("compressed block stream: %d bytes", compressedData.length);
 
-    const decompressedData = await new Promise<Uint8Array>((resolve, reject) => {
-      inflate(compressedData, (err, data) => {
-        if (err) reject(err);
-        else resolve(data);
-      });
-    });
+    const decompressedData = await new Promise<Uint8Array>(
+      (resolve, reject) => {
+        inflate(compressedData, (err, data) => {
+          if (err) reject(err);
+          else resolve(data);
+        });
+      },
+    );
     debug("decompressed block stream: %d bytes", decompressedData.length);
 
     this._decompressedData = decompressedData;
     this._decompressedView = new DataView(
       decompressedData.buffer,
       decompressedData.byteOffset,
-      decompressedData.byteLength
+      decompressedData.byteLength,
     );
 
     // Phase 3: set up PacketParser with seeded ghost tracker
@@ -268,7 +282,10 @@ export class DemoParser {
     if (off + 2 + size > data.length) {
       debugBlocks(
         "block %d: size %d would exceed decompressed data (offset=%d remaining=%d), stopping",
-        this._blockCursor, size, off + 2, data.length - off - 2
+        this._blockCursor,
+        size,
+        off + 2,
+        data.length - off - 2,
       );
       return undefined;
     }
@@ -362,7 +379,7 @@ export class DemoParser {
       gt.createGhost(
         ghost.index,
         ghost.classId,
-        parserEntry?.name ?? `unknown_${ghost.classId}`
+        parserEntry?.name ?? `unknown_${ghost.classId}`,
       );
     }
 
@@ -370,6 +387,7 @@ export class DemoParser {
       dataBlockDataMap,
       connectionProtocolState: initialBlock.connectionState,
       nextRecvEventSeq: initialBlock.nextRecvEventSeq,
+      compressionPoint: initialBlock.initialCompressionPoint,
     });
 
     this.ghostTracker = gt;
@@ -392,7 +410,7 @@ export class DemoParser {
     const strLen = this.view.getUint8(this.offset);
     this.offset += 1;
     const identString = new TextDecoder("ascii").decode(
-      this.buffer.subarray(this.offset, this.offset + strLen)
+      this.buffer.subarray(this.offset, this.offset + strLen),
     );
     this.offset += strLen;
 
@@ -423,7 +441,11 @@ export class DemoParser {
         taggedStrings.set(i, bs.readString());
       }
     }
-    debugInitial("after tagged strings bit=%d count=%d", bs.getCurPos(), taggedStrings.size);
+    debugInitial(
+      "after tagged strings bit=%d count=%d",
+      bs.getCurPos(),
+      taggedStrings.size,
+    );
 
     // --- B.1 U32 datablockCount ---
     const expectedDataBlockCount = bs.readU32();
@@ -458,19 +480,23 @@ export class DemoParser {
           data: parsedData,
         });
       } else {
-        const className = classId >= DataBlockClassFirst &&
+        const className =
+          classId >= DataBlockClassFirst &&
           classId < DataBlockClassFirst + DataBlockClassNames.length
-          ? DataBlockClassNames[classId - DataBlockClassFirst]
-          : `unknown(${classId})`;
+            ? DataBlockClassNames[classId - DataBlockClassFirst]
+            : `unknown(${classId})`;
         throw new Error(
-          `No parser for DataBlock classId ${classId} (${className}) at bit ${dataBitsStart}`
+          `No parser for DataBlock classId ${classId} (${className}) at bit ${dataBitsStart}`,
         );
       }
     }
 
     debug(
       "all %d/%d DataBlocks parsed (%d payloads), bit position after DataBlocks: %d",
-      dataBlockCount, expectedDataBlockCount, dataBlocks.size, bs.getCurPos()
+      dataBlockCount,
+      expectedDataBlockCount,
+      dataBlocks.size,
+      bs.getCurPos(),
     );
 
     // --- B.3 $firstPerson (U8 boolean from GameConnection::writeDemoStartBlock) ---
@@ -493,17 +519,31 @@ export class DemoParser {
     for (let i = 0; i < scoreCount; i++) {
       scoreEntries.push(this.readScoreEntry(bs));
     }
-    debugInitial("after score entries bit=%d scoreCount=%d", bs.getCurPos(), scoreCount);
+    debugInitial(
+      "after score entries bit=%d scoreCount=%d",
+      bs.getCurPos(),
+      scoreCount,
+    );
 
     // B.8: FUN_005fb130 — clears internal state, no bitstream I/O
 
     // --- B.8 DemoValues ---
     const demoValues = this.readDemoValues(bs);
-    debugInitial("after demo values bit=%d demoValues=%d", bs.getCurPos(), demoValues.length);
+    debugInitial(
+      "after demo values bit=%d demoValues=%d",
+      bs.getCurPos(),
+      demoValues.length,
+    );
 
     // --- B.9 Complex TargetManager (FUN_00670660) ---
-    const { sensorGroupColors, targets: targetEntries } = this.readComplexTargetManager(bs);
-    debugInitial("after complex target manager bit=%d targets=%d sensorGroupColors=%d", bs.getCurPos(), targetEntries.length, sensorGroupColors.length);
+    const { sensorGroupColors, targets: targetEntries } =
+      this.readComplexTargetManager(bs);
+    debugInitial(
+      "after complex target manager bit=%d targets=%d sensorGroupColors=%d",
+      bs.getCurPos(),
+      targetEntries.length,
+      sensorGroupColors.length,
+    );
 
     // --- B.10 Parent: NetConnection::readDemoStartBlock (FUN_00588260) ---
 
@@ -511,24 +551,40 @@ export class DemoParser {
     const connectionState = this.readConnectionProtocol(bs);
     debugInitial(
       "after connection protocol bit=%d lastRecv=%d highestAck=%d lastSend=%d connected=%s",
-      bs.getCurPos(), connectionState.lastSeqRecvd, connectionState.highestAckedSeq,
-      connectionState.lastSendSeq, connectionState.connectionEstablished
+      bs.getCurPos(),
+      connectionState.lastSeqRecvd,
+      connectionState.highestAckedSeq,
+      connectionState.lastSendSeq,
+      connectionState.connectionEstablished,
     );
 
     // B.10b RTT, B.10c packet loss
     const roundTripTime = bs.readF32();
     const packetLoss = bs.readF32();
-    debugInitial("after RTT/loss bit=%d rtt=%d loss=%d", bs.getCurPos(), roundTripTime, packetLoss);
+    debugInitial(
+      "after RTT/loss bit=%d rtt=%d loss=%d",
+      bs.getCurPos(),
+      roundTripTime,
+      packetLoss,
+    );
 
     // B.10d PathManager (FUN_00591ce0)
     const pathManager = this.readPathManager(bs);
-    debugInitial("after path manager bit=%d entries=%d", bs.getCurPos(), pathManager.length);
+    debugInitial(
+      "after path manager bit=%d entries=%d",
+      bs.getCurPos(),
+      pathManager.length,
+    );
 
     // B.10e Notify count only (FUN_00588260).
     // The reader allocates notify nodes in memory but does not consume
     // per-notify records from the bitstream in this phase.
     const notifyCount = bs.readU32();
-    debugInitial("after notify count bit=%d notifyCount=%d", bs.getCurPos(), notifyCount);
+    debugInitial(
+      "after notify count bit=%d notifyCount=%d",
+      bs.getCurPos(),
+      notifyCount,
+    );
 
     // --- B.10f through B.15: events, ghosts, control object, mission ---
     // Uses a temporary ghost tracker for initial-block ghost parsing only.
@@ -543,25 +599,45 @@ export class DemoParser {
     let initialGhosts: GhostUpdate[] = [];
     let controlObjectGhostIndex = -1;
     let controlObjectData: Record<string, unknown> | undefined;
+    let initialCompressionPoint:
+      { x: number; y: number; z: number } | undefined;
     let missionName = "";
     let missionCRC = 0;
     let phase2Error: string | undefined;
     try {
-      debugInitial("phase2 start bit=%d remaining=%d", bs.getCurPos(), totalBits - bs.getCurPos());
+      debugInitial(
+        "phase2 start bit=%d remaining=%d",
+        bs.getCurPos(),
+        totalBits - bs.getCurPos(),
+      );
 
       // B.10f Events
-      ({ nextRecvEventSeq, events: initialEvents } = this.readEventStartBlock(bs));
-      debugInitial("after initial events bit=%d count=%d", bs.getCurPos(), initialEvents.length);
+      ({ nextRecvEventSeq, events: initialEvents } =
+        this.readEventStartBlock(bs));
+      debugInitial(
+        "after initial events bit=%d count=%d",
+        bs.getCurPos(),
+        initialEvents.length,
+      );
 
       // B.10g Ghosts
       const ghostResult = this.readGhostStartBlock(bs, dataBlocks);
       ghostingSequence = ghostResult.ghostingSequence;
       initialGhosts = ghostResult.ghosts;
-      debugInitial("after initial ghosts bit=%d count=%d seq=%d", bs.getCurPos(), initialGhosts.length, ghostingSequence);
+      debugInitial(
+        "after initial ghosts bit=%d count=%d seq=%d",
+        bs.getCurPos(),
+        initialGhosts.length,
+        ghostingSequence,
+      );
 
       // B.11 controlObjectGhostIndex
       controlObjectGhostIndex = bs.readS32();
-      debugInitial("after control ghost index bit=%d control=%d", bs.getCurPos(), controlObjectGhostIndex);
+      debugInitial(
+        "after control ghost index bit=%d control=%d",
+        bs.getCurPos(),
+        controlObjectGhostIndex,
+      );
 
       // B.12 If != -1: controlObject readPacketData
       if (controlObjectGhostIndex !== -1) {
@@ -569,12 +645,26 @@ export class DemoParser {
         if (ghost) {
           const parser = this.registry.getGhostParser(ghost.classId);
           if (parser?.readPacketData) {
+            // getGhostParser enables the nested vehicle readPacketData
+            // when the recorder was piloting at recording start — without
+            // it those bytes go unread and every later read in the
+            // initial block (mission name, CRC) is misaligned.
             const conn = {
               compressionPoint: { x: 0, y: 0, z: 0 },
               ghostTracker: ibGhostTracker,
+              getGhostParser: (classId: number) =>
+                this.registry.getGhostParser(classId),
             };
             controlObjectData = parser.readPacketData(bs, conn);
-            debugInitial("after control readPacketData bit=%d parser=%s", bs.getCurPos(), parser.name);
+            // The control object's readPacketData establishes the
+            // connection's compression point (its position) — carry it
+            // into the packet parser seed.
+            initialCompressionPoint = conn.compressionPoint;
+            debugInitial(
+              "after control readPacketData bit=%d parser=%s",
+              bs.getCurPos(),
+              parser.name,
+            );
           }
         }
       }
@@ -588,7 +678,12 @@ export class DemoParser {
       // B.15 Simple TargetManager ×2
       this.readSimpleTargetManager(bs);
       this.readSimpleTargetManager(bs);
-      debugInitial('after sequential tail bit=%d mission="%s" CRC=0x%s', bs.getCurPos(), missionName, missionCRC.toString(16));
+      debugInitial(
+        'after sequential tail bit=%d mission="%s" CRC=0x%s',
+        bs.getCurPos(),
+        missionName,
+        missionCRC.toString(16),
+      );
     } catch (e) {
       phase2Error = e instanceof Error ? e.message : String(e);
     } finally {
@@ -596,14 +691,13 @@ export class DemoParser {
     }
 
     const remaining = totalBits - bs.getCurPos();
-    const missionPrintableRatio = missionName.length > 0
-      ? missionName
-          .split("")
-          .filter((c) => {
+    const missionPrintableRatio =
+      missionName.length > 0
+        ? missionName.split("").filter((c) => {
             const code = c.charCodeAt(0);
             return code >= 0x20 && code <= 0x7e;
           }).length / missionName.length
-      : 1;
+        : 1;
     const phase2Valid =
       missionName.length > 0 &&
       missionPrintableRatio >= 0.8 &&
@@ -611,9 +705,14 @@ export class DemoParser {
 
     debug(
       'initial block: events=%d ghosts=%d ghostingSeq=%d controlObj=%d mission="%s" CRC=0x%s valid=%s%s',
-      initialEvents.length, initialGhosts.length, ghostingSequence,
-      controlObjectGhostIndex, missionName, missionCRC.toString(16),
-      phase2Valid, phase2Error ? ` error=${phase2Error}` : ""
+      initialEvents.length,
+      initialGhosts.length,
+      ghostingSequence,
+      controlObjectGhostIndex,
+      missionName,
+      missionCRC.toString(16),
+      phase2Valid,
+      phase2Error ? ` error=${phase2Error}` : "",
     );
 
     return {
@@ -639,6 +738,7 @@ export class DemoParser {
       initialEvents,
       controlObjectGhostIndex,
       controlObjectData,
+      initialCompressionPoint,
       missionName,
       missionCRC,
       phase2TrailingBits: remaining,
@@ -662,7 +762,16 @@ export class DemoParser {
     const isBot = bs.readFlag();
     const triggerFlags: boolean[] = [];
     for (let i = 0; i < 6; i++) triggerFlags.push(bs.readFlag());
-    return { clientId, teamId, score, field0, field1, field2, isBot, triggerFlags };
+    return {
+      clientId,
+      teamId,
+      score,
+      field0,
+      field1,
+      field2,
+      isBot,
+      triggerFlags,
+    };
   }
 
   /**
@@ -742,8 +851,8 @@ export class DemoParser {
       if (bs.readFlag()) entry.typeDescription = bs.readString();
 
       // Always-read fields
-      entry.sensorGroup = bs.readInt(5);  // team/type
-      entry.targetData = bs.readInt(9);  // target data
+      entry.sensorGroup = bs.readInt(5); // team/type
+      entry.targetData = bs.readInt(9); // target data
 
       // Targets >= 32 have additional DataBlock reference
       if (i >= 32) {
@@ -781,7 +890,12 @@ export class DemoParser {
     for (let i = 0; i < entryCount; i++) {
       const entryId = bs.readU32();
       const recordCount = bs.readU32();
-      const records: { field0: number; field1: number; field2: number; auxField: number }[] = [];
+      const records: {
+        field0: number;
+        field1: number;
+        field2: number;
+        auxField: number;
+      }[] = [];
       for (let j = 0; j < recordCount; j++) {
         records.push({
           field0: bs.readU32(),
@@ -800,7 +914,7 @@ export class DemoParser {
    * Format: U8 flag + 4×U32 = 136 bits total.
    */
   private readSimpleTargetManager(bs: BitStream): void {
-    bs.readU8();  // _read(1) = 8 bits
+    bs.readU8(); // _read(1) = 8 bits
     bs.readU32(); // 4× _read(4)
     bs.readU32();
     bs.readU32();
@@ -832,15 +946,19 @@ export class DemoParser {
     };
   }
 
-  private readEventStartBlock(
-    bs: BitStream
-  ): { nextRecvEventSeq: number; events: NetEventInfo[] } {
+  private readEventStartBlock(bs: BitStream): {
+    nextRecvEventSeq: number;
+    events: NetEventInfo[];
+  } {
     const nextRecvEventSeq = bs.readU32();
     const events: NetEventInfo[] = [];
-    debugInitial("event block: nextRecvEventSeq=%d bit=%d", nextRecvEventSeq, bs.getCurPos());
+    debugInitial(
+      "event block: nextRecvEventSeq=%d bit=%d",
+      nextRecvEventSeq,
+      bs.getCurPos(),
+    );
     while (bs.readFlag()) {
-      const classId =
-        bs.readInt(NetEventClassBitSize) + NetEventClassFirst;
+      const classId = bs.readInt(NetEventClassBitSize) + NetEventClassFirst;
       const dataBitsStart = bs.getCurPos();
 
       // Try to parse the event payload using the registry
@@ -863,6 +981,7 @@ export class DemoParser {
             guaranteed: true,
             dataBitsStart,
             dataBitsEnd: dataBitsStart,
+            failed: true,
           });
           break;
         }
@@ -873,6 +992,7 @@ export class DemoParser {
           guaranteed: true,
           dataBitsStart,
           dataBitsEnd: dataBitsStart,
+          failed: true,
         });
         break;
       }
@@ -884,18 +1004,26 @@ export class DemoParser {
         dataBitsEnd: bs.getCurPos(),
         parsedData,
       });
-      debugInitial("  event classId=%d bits=%d", classId, bs.getCurPos() - dataBitsStart);
+      debugInitial(
+        "  event classId=%d bits=%d",
+        classId,
+        bs.getCurPos() - dataBitsStart,
+      );
     }
     return { nextRecvEventSeq, events };
   }
 
   private readGhostStartBlock(
     bs: BitStream,
-    dataBlocks: Map<number, ParsedDataBlock>
+    dataBlocks: Map<number, ParsedDataBlock>,
   ): { ghostingSequence: number; ghosts: GhostUpdate[] } {
     const ghostingSequence = bs.readU32();
     const ghosts: GhostUpdate[] = [];
-    debugInitial("ghost block: seq=%d bit=%d", ghostingSequence, bs.getCurPos());
+    debugInitial(
+      "ghost block: seq=%d bit=%d",
+      ghostingSequence,
+      bs.getCurPos(),
+    );
     const ghostCatalog = this.registry.getGhostCatalog();
     const totalBits = bs.getBuffer().length * 8;
 
@@ -910,8 +1038,7 @@ export class DemoParser {
       if (bs.isError()) break;
 
       const index = bs.readInt(GhostIdBitSize);
-      const classId =
-        bs.readInt(NetObjectClassBitSize) + NetObjectClassFirst;
+      const classId = bs.readInt(NetObjectClassBitSize) + NetObjectClassFirst;
       const updateBitsStart = bs.getCurPos();
 
       // Build ordered list of parser candidates.
@@ -923,7 +1050,11 @@ export class DemoParser {
       const seen = new Set<GhostParserEntry>();
 
       // Peek at DataBlock flag to identify ghost via DataBlock type
-      const { entry: dbEntry } = this.identifyGhostViaDataBlock(bs, dataBlocks, ghostCatalog);
+      const { entry: dbEntry } = this.identifyGhostViaDataBlock(
+        bs,
+        dataBlocks,
+        ghostCatalog,
+      );
 
       // Candidate 1: registry binding (deterministic classId)
       const regEntry = this.registry.getGhostParser(classId);
@@ -941,17 +1072,30 @@ export class DemoParser {
       // Try each candidate with alignment validation
       const connOverrides = {
         getDataBlockData: (objectId: number) => dataBlockDataMap.get(objectId),
-        getDataBlockParser: (cid: number) => this.registry.getDataBlockParser(cid),
+        getDataBlockParser: (cid: number) =>
+          this.registry.getDataBlockParser(cid),
       };
       let parsed = false;
       for (const { entry, method } of candidates) {
         const isTrusted = method === "registry";
-        const result = this.tryGhostParser(bs, entry, updateBitsStart, totalBits, false, connOverrides, isTrusted);
+        const result = this.tryGhostParser(
+          bs,
+          entry,
+          updateBitsStart,
+          totalBits,
+          false,
+          connOverrides,
+          isTrusted,
+        );
         if (result !== false) {
           this.ghostTracker.createGhost(index, classId, entry.name);
           debugInitial(
             "  ghost idx=%d classId=%d parser=%s bits=%d via=%s",
-            index, classId, entry.name, bs.getCurPos() - updateBitsStart, method
+            index,
+            classId,
+            entry.name,
+            bs.getCurPos() - updateBitsStart,
+            method,
           );
           ghosts.push({
             index,
@@ -971,14 +1115,19 @@ export class DemoParser {
       // No candidate worked — stop parsing ghosts
       debugInitial(
         "  ghost idx=%d classId=%d NO PARSER (stopping at bit=%d, remaining=%d)",
-        index, classId, updateBitsStart, totalBits - updateBitsStart
+        index,
+        classId,
+        updateBitsStart,
+        totalBits - updateBitsStart,
       );
       break;
     }
 
     debugInitial(
       "ghost loop ended at bit=%d remaining=%d count=%d",
-      bs.getCurPos(), totalBits - bs.getCurPos(), ghosts.length
+      bs.getCurPos(),
+      totalBits - bs.getCurPos(),
+      ghosts.length,
     );
     return { ghostingSequence, ghosts };
   }
@@ -996,7 +1145,7 @@ export class DemoParser {
     totalBits: number,
     silent = false,
     connOverrides?: Partial<import("./ClassRegistry.js").ConnectionContext>,
-    trusted = false
+    trusted = false,
   ): Record<string, unknown> | false {
     const savedPos = bs.savePos();
     if (!silent) {
@@ -1013,7 +1162,12 @@ export class DemoParser {
 
       if (bs.isError() || (!trusted && bitsConsumed < 3)) {
         if (!silent) {
-          debugInitial("    reject %s: bits=%d isError=%s", entry.name, bitsConsumed, bs.isError());
+          debugInitial(
+            "    reject %s: bits=%d isError=%s",
+            entry.name,
+            bitsConsumed,
+            bs.isError(),
+          );
         }
         bs.restorePos(savedPos);
         return false;
@@ -1027,7 +1181,12 @@ export class DemoParser {
         bs.setCurPos(peekPos);
         if (!nextFlag) {
           if (!silent) {
-            debugInitial("    reject %s: bits=%d misaligned (remaining=%d)", entry.name, bitsConsumed, remaining);
+            debugInitial(
+              "    reject %s: bits=%d misaligned (remaining=%d)",
+              entry.name,
+              bitsConsumed,
+              remaining,
+            );
           }
           bs.restorePos(savedPos);
           return false;
@@ -1039,8 +1198,9 @@ export class DemoParser {
       if (!silent) {
         debugInitial(
           "    reject %s: error at bit=%d: %s",
-          entry.name, bs.getCurPos(),
-          e instanceof Error ? e.message : String(e)
+          entry.name,
+          bs.getCurPos(),
+          e instanceof Error ? e.message : String(e),
         );
       }
       bs.restorePos(savedPos);
@@ -1064,7 +1224,7 @@ export class DemoParser {
   private identifyGhostViaDataBlock(
     bs: BitStream,
     dataBlocks: Map<number, ParsedDataBlock> | undefined,
-    ghostCatalog: Map<string, GhostParserEntry>
+    ghostCatalog: Map<string, GhostParserEntry>,
   ): { entry: GhostParserEntry | undefined; dbFlag: boolean } {
     if (!dataBlocks) return { entry: undefined, dbFlag: false };
 
@@ -1083,11 +1243,16 @@ export class DemoParser {
           if (!entry) {
             debugInitial(
               "    identifyGhostViaDataBlock: dbId=%d className=%s ghostName=%s (no ghost parser)",
-              dbId, db.className, ghostName
+              dbId,
+              db.className,
+              ghostName,
             );
           }
         } else {
-          debugInitial("    identifyGhostViaDataBlock: dbId=%d (no DataBlock found)", dbId);
+          debugInitial(
+            "    identifyGhostViaDataBlock: dbId=%d (no DataBlock found)",
+            dbId,
+          );
         }
       } else {
         debugInitial("    identifyGhostViaDataBlock: DataBlock flag=0");
@@ -1137,9 +1302,22 @@ export class DemoParser {
     }
 
     return {
-      px, py, pz, pyaw, ppitch, proll,
-      x, y, z, yaw, pitch, roll,
-      id, sendCount, freeLook, trigger,
+      px,
+      py,
+      pz,
+      pyaw,
+      ppitch,
+      proll,
+      x,
+      y,
+      z,
+      yaw,
+      pitch,
+      roll,
+      id,
+      sendCount,
+      freeLook,
+      trigger,
     };
   }
 
