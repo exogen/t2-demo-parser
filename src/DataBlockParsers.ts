@@ -89,9 +89,12 @@ function readRangedS32(bs: BitStream, min: number, max: number): number {
  * Each byte is multiplied by 1/255.0 to produce the float value.
  * NOTE: This is NOT 4×F32 (128 bits) — it's 4×U8 (32 bits).
  */
-function readColorF(
-  bs: BitStream
-): { r: number; g: number; b: number; a: number } {
+function readColorF(bs: BitStream): {
+  r: number;
+  g: number;
+  b: number;
+  a: number;
+} {
   return {
     r: bs.readInt(8) / 255,
     g: bs.readInt(8) / 255,
@@ -116,7 +119,7 @@ function readRangedF32(
   bs: BitStream,
   min: number,
   max: number,
-  bits: number
+  bits: number,
 ): number {
   return min + (bs.readInt(bits) / ((1 << bits) - 1)) * (max - min);
 }
@@ -149,15 +152,15 @@ function shapeBaseDataUnpack(bs: BitStream): ShapeBaseDataBlock {
 
   // 9 conditional F32 fields (flag + F32 if non-default)
   // Binary: each is readFlag, if true: read(4) → field offset
-  if (bs.readFlag()) result.mass = bs.readF32();           // → 0x74
-  if (bs.readFlag()) result.drag = bs.readF32();           // → 0x78
-  if (bs.readFlag()) result.density = bs.readF32();        // → 0x7c
-  if (bs.readFlag()) result.maxEnergy = bs.readF32();      // → 0x80
-  if (bs.readFlag()) result.cameraMaxDist = bs.readF32();  // → 0xa4
-  if (bs.readFlag()) result.cameraMinDist = bs.readF32();  // → 0xa8
+  if (bs.readFlag()) result.mass = bs.readF32(); // → 0x74
+  if (bs.readFlag()) result.drag = bs.readF32(); // → 0x78
+  if (bs.readFlag()) result.density = bs.readF32(); // → 0x7c
+  if (bs.readFlag()) result.maxEnergy = bs.readF32(); // → 0x80
+  if (bs.readFlag()) result.cameraMaxDist = bs.readF32(); // → 0xa4
+  if (bs.readFlag()) result.cameraMinDist = bs.readF32(); // → 0xa8
   if (bs.readFlag()) result.cameraDefaultFov = bs.readF32(); // → 0xac
-  if (bs.readFlag()) result.cameraMinFov = bs.readF32();   // → 0xb0
-  if (bs.readFlag()) result.cameraMaxFov = bs.readF32();   // → 0xb4
+  if (bs.readFlag()) result.cameraMinFov = bs.readF32(); // → 0xb0
+  if (bs.readFlag()) result.cameraMaxFov = bs.readF32(); // → 0xb4
 
   // debrisShapeName — readString → this+0x48
   result.debrisShapeName = bs.readString();
@@ -192,22 +195,22 @@ function shapeBaseDataUnpack(bs: BitStream): ShapeBaseDataBlock {
 
   // 3 more boolean flags (grouped together in binary, different from V12)
   // Binary: this+0x325, 0x329, 0x32a
-  result.emap = bs.readFlag();              // 0x325
-  result.isInvincible = bs.readFlag();      // 0x329
+  result.emap = bs.readFlag(); // 0x325
+  result.isInvincible = bs.readFlag(); // 0x329
   result.renderWhenDestroyed = bs.readFlag(); // 0x32a
 
   // 4 DataBlock refs using readClassId (FUN_00436d10 = readInt(11))
   // Binary: each is readFlag + readClassId → this+0x70, 0x60, 0x68, 0x58
-  result.cmdIcon = readDataBlockRef(bs);          // 0x6c/0x70
-  result.explosion = readDataBlockRef(bs);        // 0x5c/0x60
+  result.cmdIcon = readDataBlockRef(bs); // 0x6c/0x70
+  result.explosion = readDataBlockRef(bs); // 0x5c/0x60
   result.underwaterExplosion = readDataBlockRef(bs); // 0x64/0x68
-  result.debris = readDataBlockRef(bs);           // 0x54/0x58
+  result.debris = readDataBlockRef(bs); // 0x54/0x58
 
   // 3 more boolean flags
   // Binary: this+0x32b, 0x326, 0x327
-  result.inheritEnergyFromMount = bs.readFlag();  // 0x32b
-  result.firstPersonOnly = bs.readFlag();         // 0x326
-  result.useEyePoint = bs.readFlag();             // 0x327
+  result.inheritEnergyFromMount = bs.readFlag(); // 0x32b
+  result.firstPersonOnly = bs.readFlag(); // 0x326
+  result.useEyePoint = bs.readFlag(); // 0x327
 
   // shieldEffectLifetimeMS — U32 → this+0x94
   result.shieldEffectLifetimeMS = bs.readU32();
@@ -229,17 +232,17 @@ function shapeBaseDataUnpack(bs: BitStream): ShapeBaseDataBlock {
   for (let i = 0; i < 8; i++) {
     const hasFriendly = bs.readFlag();
     if (!hasFriendly) continue;
-    const friendlyName = bs.readString();       // → this + i*4 + 0x174
+    const friendlyName = bs.readString(); // → this + i*4 + 0x174
     const hasEnemy = bs.readFlag();
     const enemyName = hasEnemy ? bs.readString() : undefined; // → this + i*4 + 0x194
     const img: HudImageEntry = {
       friendlyName,
       enemyName,
-      renderCenter: bs.readFlag(),          // → this + i + 0x1f4
-      renderModulated: bs.readFlag(),       // → this + i + 0x1fc
-      renderAlways: bs.readFlag(),          // → this + i + 0x204
-      renderDistance: bs.readFlag(),         // → this + i + 0x20c
-      renderName: bs.readFlag(),            // → this + i + 0x214
+      renderCenter: bs.readFlag(), // → this + i + 0x1f4
+      renderModulated: bs.readFlag(), // → this + i + 0x1fc
+      renderAlways: bs.readFlag(), // → this + i + 0x204
+      renderDistance: bs.readFlag(), // → this + i + 0x20c
+      renderName: bs.readFlag(), // → this + i + 0x214
     };
     hudImages.push(img);
   }
@@ -347,18 +350,23 @@ function shapeBaseImageDataUnpack(bs: BitStream): ShapeBaseImageDataBlock {
 
     const name = bs.readString();
 
-    // 11 transition values: each readInt(5)
-    const transitionOnAmmo = bs.readInt(5);
+    // 11 transition values, each readInt(5), in the ENGINE's packing
+    // order (binary-verified; the old names here were rotated by two
+    // slots and consumers had to carry a remap table): NotLoaded,
+    // Loaded, NoAmmo, Ammo, NoTarget, Target, NotWet, Wet, TriggerUp,
+    // TriggerDown, Timeout. Values are 1-based state indices (0 = no
+    // transition).
+    const transitionOnNotLoaded = bs.readInt(5);
+    const transitionOnLoaded = bs.readInt(5);
     const transitionOnNoAmmo = bs.readInt(5);
-    const transitionOnTarget = bs.readInt(5);
+    const transitionOnAmmo = bs.readInt(5);
     const transitionOnNoTarget = bs.readInt(5);
-    const transitionOnWet = bs.readInt(5);
+    const transitionOnTarget = bs.readInt(5);
     const transitionOnNotWet = bs.readInt(5);
+    const transitionOnWet = bs.readInt(5);
     const transitionOnTriggerUp = bs.readInt(5);
     const transitionOnTriggerDown = bs.readInt(5);
     const transitionOnTimeout = bs.readInt(5);
-    const transitionGeneric0In = bs.readInt(5);
-    const transitionGeneric0Out = bs.readInt(5);
 
     // timeoutValue — flag(!=default) then F32
     const timeoutValue = bs.readFlag() ? bs.readF32() : undefined;
@@ -399,6 +407,8 @@ function shapeBaseImageDataUnpack(bs: BitStream): ShapeBaseImageDataBlock {
 
     const state: ImageState = {
       name,
+      transitionOnNotLoaded,
+      transitionOnLoaded,
       transitionOnAmmo,
       transitionOnNoAmmo,
       transitionOnTarget,
@@ -408,8 +418,6 @@ function shapeBaseImageDataUnpack(bs: BitStream): ShapeBaseImageDataBlock {
       transitionOnTriggerUp,
       transitionOnTriggerDown,
       transitionOnTimeout,
-      transitionGeneric0In,
-      transitionGeneric0Out,
       timeoutValue,
       waitForTimeout,
       fire,
@@ -459,17 +467,17 @@ function playerDataUnpack(bs: BitStream): PlayerDataBlock {
   // SVN source, whose layout differs from retail.
 
   // 2. 13× F32 (offsets 0x334-0x360)
-  result.minLookAngle = bs.readF32();       // 0x334
-  result.maxLookAngle = bs.readF32();       // 0x338
-  result.maxFreelookAngle = bs.readF32();   // 0x33c
-  result.maxTimeScale = bs.readF32();       // 0x330
-  result.maxStepHeight = bs.readF32();      // 0x398
-  result.jetForce = bs.readF32();           // 0x344
+  result.minLookAngle = bs.readF32(); // 0x334
+  result.maxLookAngle = bs.readF32(); // 0x338
+  result.maxFreelookAngle = bs.readF32(); // 0x33c
+  result.maxTimeScale = bs.readF32(); // 0x330
+  result.maxStepHeight = bs.readF32(); // 0x398
+  result.jetForce = bs.readF32(); // 0x344
   result.underwaterJetForce = bs.readF32(); // 0x348
   result.underwaterVertJetFactor = bs.readF32(); // 0x34c
-  result.jetEnergyDrain = bs.readF32();     // 0x350
+  result.jetEnergyDrain = bs.readF32(); // 0x350
   result.underwaterJetEnergyDrain = bs.readF32(); // 0x354
-  result.minJetEnergy = bs.readF32();       // 0x358
+  result.minJetEnergy = bs.readF32(); // 0x358
   result.maxJetForwardSpeed = bs.readF32(); // 0x35c
   result.maxJetHorizontalPercentage = bs.readF32(); // 0x360
   // [0x364 hardcoded to 0, not from stream]
@@ -481,53 +489,53 @@ function playerDataUnpack(bs: BitStream): PlayerDataBlock {
   }
 
   // 4. 9× F32 (offsets 0x374-0x394)
-  result.runForce = bs.readF32();           // 0x374
-  result.runEnergyDrain = bs.readF32();     // 0x378
-  result.minRunEnergy = bs.readF32();       // 0x37c
-  result.maxForwardSpeed = bs.readF32();    // 0x380
-  result.maxBackwardSpeed = bs.readF32();   // 0x384
-  result.maxSideSpeed = bs.readF32();       // 0x388
+  result.runForce = bs.readF32(); // 0x374
+  result.runEnergyDrain = bs.readF32(); // 0x378
+  result.minRunEnergy = bs.readF32(); // 0x37c
+  result.maxForwardSpeed = bs.readF32(); // 0x380
+  result.maxBackwardSpeed = bs.readF32(); // 0x384
+  result.maxSideSpeed = bs.readF32(); // 0x388
   result.maxUnderwaterForwardSpeed = bs.readF32(); // 0x38c
   result.maxUnderwaterBackwardSpeed = bs.readF32(); // 0x390
   result.maxUnderwaterSideSpeed = bs.readF32(); // 0x394
 
   // 5. 1× F32 (offset 0x39c)
-  result.runSurfaceAngle = bs.readF32();    // 0x39c
+  result.runSurfaceAngle = bs.readF32(); // 0x39c
 
   // 6. 8× F32 (offsets 0x3b8-0x3d4)
-  result.recoverDelay = bs.readF32();       // 0x3b8
+  result.recoverDelay = bs.readF32(); // 0x3b8
   result.recoverRunForceScale = bs.readF32(); // 0x3bc
-  result.jumpForce = bs.readF32();          // 0x3c0
-  result.jumpEnergyDrain = bs.readF32();    // 0x3c4
-  result.minJumpEnergy = bs.readF32();      // 0x3c8
-  result.minJumpSpeed = bs.readF32();       // 0x3cc
-  result.maxJumpSpeed = bs.readF32();       // 0x3d0
-  result.jumpSurfaceAngle = bs.readF32();   // 0x3d4
+  result.jumpForce = bs.readF32(); // 0x3c0
+  result.jumpEnergyDrain = bs.readF32(); // 0x3c4
+  result.minJumpEnergy = bs.readF32(); // 0x3c8
+  result.minJumpSpeed = bs.readF32(); // 0x3cc
+  result.maxJumpSpeed = bs.readF32(); // 0x3d0
+  result.jumpSurfaceAngle = bs.readF32(); // 0x3d4
 
   // 7. readInt(7) → jumpDelay (offset 0x3d8)
   result.jumpDelay = bs.readInt(7);
 
   // 8. 6× F32 (offsets 0x3a0-0x3b4)
-  result.horizMaxSpeed = bs.readF32();      // 0x3a0
-  result.horizResistSpeed = bs.readF32();   // 0x3a4
-  result.horizResistFactor = bs.readF32();  // 0x3a8
-  result.upMaxSpeed = bs.readF32();         // 0x3ac
-  result.upResistSpeed = bs.readF32();      // 0x3b0
-  result.upResistFactor = bs.readF32();     // 0x3b4
+  result.horizMaxSpeed = bs.readF32(); // 0x3a0
+  result.horizResistSpeed = bs.readF32(); // 0x3a4
+  result.horizResistFactor = bs.readF32(); // 0x3a8
+  result.upMaxSpeed = bs.readF32(); // 0x3ac
+  result.upResistSpeed = bs.readF32(); // 0x3b0
+  result.upResistFactor = bs.readF32(); // 0x3b4
 
   // 9. 9× F32 (offsets 0xd14-0xd34, far offsets = Tribes 2-specific fields)
-  result.splashVelocity = bs.readF32();     // 0xd14
-  result.splashAngle = bs.readF32();        // 0xd18
-  result.splashFreqMod = bs.readF32();      // 0xd1c
-  result.splashVelEpsilon = bs.readF32();   // 0xd20
-  result.bubbleEmitTime = bs.readF32();     // 0xd24
+  result.splashVelocity = bs.readF32(); // 0xd14
+  result.splashAngle = bs.readF32(); // 0xd18
+  result.splashFreqMod = bs.readF32(); // 0xd1c
+  result.splashVelEpsilon = bs.readF32(); // 0xd20
+  result.bubbleEmitTime = bs.readF32(); // 0xd24
   result.mediumSplashSoundVelocity = bs.readF32(); // 0xd28
-  result.hardSplashSoundVelocity = bs.readF32();   // 0xd2c
-  result.exitSplashSoundVelocity = bs.readF32();   // 0xd30
-  result.footstepSplashHeight = bs.readF32();      // 0xd34
+  result.hardSplashSoundVelocity = bs.readF32(); // 0xd2c
+  result.exitSplashSoundVelocity = bs.readF32(); // 0xd30
+  result.footstepSplashHeight = bs.readF32(); // 0xd34
 
   // 10. 1× F32 (offset 0x3f4)
-  result.minImpactSpeed = bs.readF32();     // 0x3f4
+  result.minImpactSpeed = bs.readF32(); // 0x3f4
 
   // 11. Sound loop: 32 iterations (MaxSounds=0x20 in binary)
   // Binary: zeros 0x428+i*4, then flag + readClassId → 0x4a8+i*4
@@ -572,21 +580,21 @@ function playerDataUnpack(bs: BitStream): PlayerDataBlock {
   // initPersistFields: the two leading fields are the Tribes 2 heat
   // signature rates (retail player.cs: 1/4 and 1/3), then the ground
   // impact shake block. Demo values confirm: 0.25, 0.333…
-  result.heatDecayPerSec = bs.readF32();        // 0x3fc
-  result.heatIncreasePerSec = bs.readF32();     // 0x400
-  result.groundImpactMinSpeed = bs.readF32();   // 0x404
+  result.heatDecayPerSec = bs.readF32(); // 0x3fc
+  result.heatIncreasePerSec = bs.readF32(); // 0x400
+  result.groundImpactMinSpeed = bs.readF32(); // 0x404
   result.groundImpactShakeFreq = {
-    x: bs.readF32(),  // 0x408
-    y: bs.readF32(),  // 0x40c
-    z: bs.readF32(),  // 0x410
+    x: bs.readF32(), // 0x408
+    y: bs.readF32(), // 0x40c
+    z: bs.readF32(), // 0x410
   };
   result.groundImpactShakeAmp = {
-    x: bs.readF32(),  // 0x414
-    y: bs.readF32(),  // 0x418
-    z: bs.readF32(),  // 0x41c
+    x: bs.readF32(), // 0x414
+    y: bs.readF32(), // 0x418
+    z: bs.readF32(), // 0x41c
   };
   result.groundImpactShakeDuration = bs.readF32(); // 0x420
-  result.groundImpactShakeFalloff = bs.readF32();  // 0x424
+  result.groundImpactShakeFalloff = bs.readF32(); // 0x424
 
   return result;
 }
@@ -612,27 +620,27 @@ function vehicleDataUnpack(bs: BitStream): VehicleDataBlock {
   result.impactSounds = impactSounds;
 
   // 3. ~20 F32s for vehicle physics
-  result.minImpactSpeed = bs.readF32();          // 0x37c
-  result.softImpactSpeed = bs.readF32();          // 0x380
-  result.hardImpactSpeed = bs.readF32();          // 0x384 (900 dec)
-  result.minRollSpeed = bs.readF32();             // 0x388
+  result.minImpactSpeed = bs.readF32(); // 0x37c
+  result.softImpactSpeed = bs.readF32(); // 0x380
+  result.hardImpactSpeed = bs.readF32(); // 0x384 (900 dec)
+  result.minRollSpeed = bs.readF32(); // 0x388
   // Registered in the retail binary as "maxSteerinAngle" (engine typo);
   // we keep the corrected spelling.
-  result.maxSteeringAngle = bs.readF32();         // 0x38c
-  result.maxDrag = bs.readF32();                  // 0x3a4
-  result.minDrag = bs.readF32();                  // 0x3a0
-  result.jetForce = bs.readF32();                 // 0x3a8
-  result.jetEnergyDrain = bs.readF32();           // 0x3ac
-  result.minJetEnergy = bs.readF32();             // 0x3b0
-  result.cameraOffset = bs.readF32();             // 0x39c
-  result.cameraLag = bs.readF32();                // 0x398
-  result.triggerDustHeight = bs.readF32();         // 0x3c8
-  result.dustHeight = bs.readF32();               // 0x3cc
-  result.numDmgEmitterAreas = bs.readF32();       // 0x408
-  result.exitSplashSoundVelocity = bs.readF32();  // 0x36c
-  result.softSplashSoundVelocity = bs.readF32();  // 0x370
+  result.maxSteeringAngle = bs.readF32(); // 0x38c
+  result.maxDrag = bs.readF32(); // 0x3a4
+  result.minDrag = bs.readF32(); // 0x3a0
+  result.jetForce = bs.readF32(); // 0x3a8
+  result.jetEnergyDrain = bs.readF32(); // 0x3ac
+  result.minJetEnergy = bs.readF32(); // 0x3b0
+  result.cameraOffset = bs.readF32(); // 0x39c
+  result.cameraLag = bs.readF32(); // 0x398
+  result.triggerDustHeight = bs.readF32(); // 0x3c8
+  result.dustHeight = bs.readF32(); // 0x3cc
+  result.numDmgEmitterAreas = bs.readF32(); // 0x408
+  result.exitSplashSoundVelocity = bs.readF32(); // 0x36c
+  result.softSplashSoundVelocity = bs.readF32(); // 0x370
   result.mediumSplashSoundVelocity = bs.readF32(); // 0x374
-  result.hardSplashSoundVelocity = bs.readF32();  // 0x378
+  result.hardSplashSoundVelocity = bs.readF32(); // 0x378
 
   // 4. Loop of 5: water impact sound DataBlock refs → offsets 0x358+i*4
   const waterSounds: (number | null)[] = [];
@@ -937,15 +945,15 @@ function projectileDataUnpack(bs: BitStream): ProjectileDataBlock {
 
   // 9 readDataBlockRef fields in pack order (verified against decompiled
   // Tribes2.exe FUN_00631010 / FUN_006303f0 struct offsets).
-  result.baseEmitter = readDataBlockRef(bs);         // 0xe8 ParticleEmitterData
-  result.delayEmitter = readDataBlockRef(bs);        // 0xec ParticleEmitterData
-  result.bubbleEmitter = readDataBlockRef(bs);       // 0xf0 ParticleEmitterData
-  result.explosion = readDataBlockRef(bs);           // 0xf4 ExplosionData
+  result.baseEmitter = readDataBlockRef(bs); // 0xe8 ParticleEmitterData
+  result.delayEmitter = readDataBlockRef(bs); // 0xec ParticleEmitterData
+  result.bubbleEmitter = readDataBlockRef(bs); // 0xf0 ParticleEmitterData
+  result.explosion = readDataBlockRef(bs); // 0xf4 ExplosionData
   result.underwaterExplosion = readDataBlockRef(bs); // 0xf8 ExplosionData
-  result.splash = readDataBlockRef(bs);              // 0xfc SplashData
-  result.sound = readDataBlockRef(bs);               // 0x100 AudioProfile (in-flight)
-  result.wetFireSound = readDataBlockRef(bs);        // 0x104 AudioProfile
-  result.fireSound = readDataBlockRef(bs);           // 0x108 AudioProfile
+  result.splash = readDataBlockRef(bs); // 0xfc SplashData
+  result.sound = readDataBlockRef(bs); // 0x100 AudioProfile (in-flight)
+  result.wetFireSound = readDataBlockRef(bs); // 0x104 AudioProfile
+  result.fireSound = readDataBlockRef(bs); // 0x108 AudioProfile
 
   // 6 decal refs (loop)
   const decals: (number | null)[] = [];
@@ -1026,7 +1034,9 @@ function linearProjectileDataUnpack(bs: BitStream): LinearProjectileDataBlock {
 // GrenadeProjectileData (extends ProjectileData)
 // ============================================================
 
-function grenadeProjectileDataUnpack(bs: BitStream): GrenadeProjectileDataBlock {
+function grenadeProjectileDataUnpack(
+  bs: BitStream,
+): GrenadeProjectileDataBlock {
   const result: GrenadeProjectileDataBlock = projectileDataUnpack(bs);
 
   result.armingDelayMS = bs.readS32();
@@ -1132,7 +1142,7 @@ function sniperProjectileDataUnpack(bs: BitStream): SniperProjectileDataBlock {
 // ============================================================
 
 function shockLanceProjectileDataUnpack(
-  bs: BitStream
+  bs: BitStream,
 ): ShockLanceProjectileDataBlock {
   // Verified against decompiled binary FUN_0064e840
   const result: ShockLanceProjectileDataBlock = projectileDataUnpack(bs);
@@ -1184,23 +1194,28 @@ function shockLanceProjectileDataUnpack(
 // ============================================================
 
 function elfProjectileDataUnpack(bs: BitStream): ELFProjectileDataBlock {
+  // Verified against decompiled binary: initPersistFields FUN_0064a860,
+  // unpackData FUN_0064ae00. 6×F32 into offsets 0x138 (beamRange) then
+  // 0x154..0x164 (the beam/lightning fields), 3 readString (textures),
+  // then flag + ranged id (emitter). Field names were previously
+  // fabricated; the bit layout was already correct.
   const result: ELFProjectileDataBlock = projectileDataUnpack(bs);
 
-  // 6×F32
+  // 6×F32 (offsets 0x138, 0x154, 0x158, 0x15c, 0x160, 0x164)
   result.beamRange = bs.readF32();
-  result.beamDrainRate = bs.readF32();
-  result.muzzleVelocity = bs.readF32();
-  result.proximityRadius = bs.readF32();
-  result.startWidth = bs.readF32();
-  result.endWidth = bs.readF32();
+  result.mainBeamWidth = bs.readF32();
+  result.mainBeamSpeed = bs.readF32();
+  result.mainBeamRepeat = bs.readF32();
+  result.lightningWidth = bs.readF32();
+  result.lightningDist = bs.readF32();
 
-  // 3 readString
-  result.mainBeamTexture = bs.readString();
-  result.innerBeamTexture = bs.readString();
-  result.flareTexture = bs.readString();
+  // 3 readString (textures[0..2] at 0x140)
+  const textures: string[] = [];
+  for (let i = 0; i < 3; i++) textures.push(bs.readString());
+  result.textures = textures;
 
-  // 1 readDataBlockRef
-  result.hitEmitter = readDataBlockRef(bs);
+  // 1 readDataBlockRef (emitter at 0x150)
+  result.emitter = readDataBlockRef(bs);
 
   return result;
 }
@@ -1210,21 +1225,27 @@ function elfProjectileDataUnpack(bs: BitStream): ELFProjectileDataBlock {
 // ============================================================
 
 function repairProjectileDataUnpack(bs: BitStream): RepairProjectileDataBlock {
+  // Verified against decompiled binary: initPersistFields FUN_00644910,
+  // unpackData FUN_00644c40 — 8×32-bit reads in struct-offset order
+  // 0x138, 0x13c, 0x140, 0x148, 0x144, 0x14c, 0x150, 0x154, then 2
+  // readString (textures at 0x158). numSegments (0x140) is registered
+  // as an S32 (persist type 1) — the old decode read its raw bits as a
+  // float. Field names were previously fabricated.
   const result: RepairProjectileDataBlock = projectileDataUnpack(bs);
 
-  // 8×F32
   result.beamRange = bs.readF32();
-  result.beamRepairRate = bs.readF32();
-  result.muzzleVelocity = bs.readF32();
-  result.proximityRadius = bs.readF32();
-  result.startWidth = bs.readF32();
-  result.endWidth = bs.readF32();
-  result.startBeamWidth = bs.readF32();
-  result.endBeamWidth = bs.readF32();
+  result.beamWidth = bs.readF32();
+  result.numSegments = bs.readS32();
+  result.beamSpeed = bs.readF32();
+  result.texRepeat = bs.readF32();
+  result.blurFreq = bs.readF32();
+  result.blurLifetime = bs.readF32();
+  result.cutoffAngle = bs.readF32();
 
-  // 2 readString
-  result.mainBeamTexture = bs.readString();
-  result.innerBeamTexture = bs.readString();
+  // 2 readString (textures[0..1]; retail: redbump2 / redflare)
+  const textures: string[] = [];
+  for (let i = 0; i < 2; i++) textures.push(bs.readString());
+  result.textures = textures;
 
   return result;
 }
@@ -1305,21 +1326,27 @@ function tracerProjectileDataUnpack(bs: BitStream): TracerProjectileDataBlock {
 // ============================================================
 
 function energyProjectileDataUnpack(bs: BitStream): EnergyProjectileDataBlock {
-  // Verified against decompiled binary FUN_00694d80 — parent is FUN_00633cf0 (GrenadeProjectileData)
+  // Verified against decompiled binary FUN_00694d80 — parent is FUN_00633cf0
+  // (GrenadeProjectileData). 7×F32 into offsets 0x168..0x180, then 2
+  // readString into 0x158/0x15c; names from initPersistFields FUN_00694b40.
   const result: EnergyProjectileDataBlock = grenadeProjectileDataUnpack(bs);
 
-  // 7×F32
-  result.energyDrainPerSecond = bs.readF32();
-  result.energyMinDrain = bs.readF32();
-  result.beamWidth = bs.readF32();
-  result.beamRange = bs.readF32();
-  result.numSegments = bs.readF32();
-  result.texRepeat = bs.readF32();
-  result.beamFlareAngle = bs.readF32();
+  // 7×F32 (offsets 0x168, 0x16c, 0x170, 0x174, then blurColor rgb at
+  // 0x178/0x17c/0x180 — alpha is not transmitted)
+  result.crossViewAng = bs.readF32();
+  result.crossSize = bs.readF32();
+  result.blurLifetime = bs.readF32();
+  result.blurWidth = bs.readF32();
+  result.blurColor = {
+    r: bs.readF32(),
+    g: bs.readF32(),
+    b: bs.readF32(),
+    a: 1,
+  };
 
-  // 2 readString
-  result.beamTexture = bs.readString();
-  result.flareTexture = bs.readString();
+  // 2 readString (offsets 0x158, 0x15c)
+  result.texture0 = bs.readString();
+  result.texture1 = bs.readString();
 
   return result;
 }
@@ -1329,7 +1356,7 @@ function energyProjectileDataUnpack(bs: BitStream): EnergyProjectileDataBlock {
 // ============================================================
 
 function linearFlareProjectileDataUnpack(
-  bs: BitStream
+  bs: BitStream,
 ): LinearFlareProjectileDataBlock {
   // Verified against decompiled binary FUN_0063dc80
   const result: LinearFlareProjectileDataBlock = linearProjectileDataUnpack(bs);
@@ -1886,7 +1913,9 @@ function audioEnvironmentUnpack(bs: BitStream): AudioEnvironmentDataBlock {
 // AudioSampleEnvironment (extends SimDataBlock — 0 parent bits)
 // ============================================================
 
-function audioSampleEnvironmentUnpack(bs: BitStream): AudioSampleEnvironmentDataBlock {
+function audioSampleEnvironmentUnpack(
+  bs: BitStream,
+): AudioSampleEnvironmentDataBlock {
   const result: AudioSampleEnvironmentDataBlock = {};
 
   // Series of rangedS32 and rangedF32 values + readInt(3)
@@ -1967,10 +1996,10 @@ function forceFieldBareDataUnpack(bs: BitStream): ForceFieldBareDataBlock {
   // Offsets 0x84, 0x88, 0x80, 0x78, 0x7c — named to match TorqueScript fields.
   // framesPerSec and numFrames are S32 (integers); the rest are F32.
   result.framesPerSec = bs.readS32(); // 0x84
-  result.numFrames = bs.readS32();    // 0x88
-  result.scrollSpeed = bs.readF32();  // 0x80
-  result.umapping = bs.readF32();     // 0x78
-  result.vmapping = bs.readF32();     // 0x7c
+  result.numFrames = bs.readS32(); // 0x88
+  result.scrollSpeed = bs.readF32(); // 0x80
+  result.umapping = bs.readF32(); // 0x78
+  result.vmapping = bs.readF32(); // 0x7c
 
   // 5 readString (loop at 0x50+i*4)
   result.texture0 = bs.readString();
@@ -1987,7 +2016,7 @@ function forceFieldBareDataUnpack(bs: BitStream): ForceFieldBareDataBlock {
 // ============================================================
 
 function particleEmissionDummyDataUnpack(
-  bs: BitStream
+  bs: BitStream,
 ): ParticleEmissionDummyDataBlock {
   return { timeMultiple: bs.readF32() };
 }
@@ -2048,7 +2077,9 @@ function precipitationDataUnpack(bs: BitStream): PrecipitationDataBlock {
 // FireballAtmosphereData
 // ============================================================
 
-function fireballAtmosphereDataUnpack(bs: BitStream): FireballAtmosphereDataBlock {
+function fireballAtmosphereDataUnpack(
+  bs: BitStream,
+): FireballAtmosphereDataBlock {
   return { emitter: readDataBlockRef(bs) };
 }
 
@@ -2139,7 +2170,9 @@ function stationFXVehicleDataUnpack(bs: BitStream): StationFXVehicleDataBlock {
 // StationFXPersonalData
 // ============================================================
 
-function stationFXPersonalDataUnpack(bs: BitStream): StationFXPersonalDataBlock {
+function stationFXPersonalDataUnpack(
+  bs: BitStream,
+): StationFXPersonalDataBlock {
   const result: StationFXPersonalDataBlock = {};
 
   // ~10 F32
@@ -2223,11 +2256,11 @@ function tsShapeConstructorUnpack(bs: BitStream): TSShapeConstructorDataBlock {
 
 function effectProfileUnpack(bs: BitStream): EffectProfileDataBlock {
   const result: EffectProfileDataBlock = {};
-  result.minDistance = bs.readF32();     // 0x40
-  result.maxDistance = bs.readF32();     // 0x44
-  result.audioScale = bs.readF32();     // 0x48
-  result.directional = readBool(bs);    // 0x4c, _read(1) = 8-bit bool
-  result.effectName = bs.readString();  // 0x3c
+  result.minDistance = bs.readF32(); // 0x40
+  result.maxDistance = bs.readF32(); // 0x44
+  result.audioScale = bs.readF32(); // 0x48
+  result.directional = readBool(bs); // 0x4c, _read(1) = 8-bit bool
+  result.effectName = bs.readString(); // 0x3c
   return result;
 }
 
@@ -2239,18 +2272,18 @@ function effectProfileUnpack(bs: BitStream): EffectProfileDataBlock {
 
 function jetEffectDataUnpack(bs: BitStream): JetEffectDataBlock {
   const result: JetEffectDataBlock = {};
-  result.coolColor = readColorF(bs);      // 0x44, FUN_0043f040 = packed 4×U8
-  result.hotColor = readColorF(bs);       // 0x54, FUN_0043f040 = packed 4×U8
-  result.activateTime = bs.readF32();     // 0x64
-  result.deactivateTime = bs.readF32();   // 0x68
-  result.length = bs.readF32();           // 0x6c
-  result.width = bs.readF32();            // 0x70
-  result.speed = bs.readF32();            // 0x74
-  result.stretch = bs.readF32();          // 0x78
-  result.yOffset = bs.readF32();          // 0x7c
+  result.coolColor = readColorF(bs); // 0x44, FUN_0043f040 = packed 4×U8
+  result.hotColor = readColorF(bs); // 0x54, FUN_0043f040 = packed 4×U8
+  result.activateTime = bs.readF32(); // 0x64
+  result.deactivateTime = bs.readF32(); // 0x68
+  result.length = bs.readF32(); // 0x6c
+  result.width = bs.readF32(); // 0x70
+  result.speed = bs.readF32(); // 0x74
+  result.stretch = bs.readF32(); // 0x78
+  result.yOffset = bs.readF32(); // 0x7c
   // texture[0]: loop of 1 iteration, flag + conditional string
   if (bs.readFlag()) {
-    result.texture = bs.readString();     // 0x80
+    result.texture = bs.readString(); // 0x80
   }
   return result;
 }
@@ -2263,24 +2296,26 @@ function jetEffectDataUnpack(bs: BitStream): JetEffectDataBlock {
 
 function runningLightDataUnpack(bs: BitStream): RunningLightDataBlock {
   const result: RunningLightDataBlock = {};
-  result.radius = bs.readF32();           // 0x48
-  result.color = readColorF(bs);          // 0x4c, FUN_0043f040 = packed 4×U8
-  result.type = bs.readF32();             // 0x44, stored as F32 (bool/int on wire)
-  result.length = bs.readF32();           // 0x78
-  result.nodeName = bs.readString();      // 0x5c
-  result.direction = {                    // 0x60-0x68
+  result.radius = bs.readF32(); // 0x48
+  result.color = readColorF(bs); // 0x4c, FUN_0043f040 = packed 4×U8
+  result.type = bs.readF32(); // 0x44, stored as F32 (bool/int on wire)
+  result.length = bs.readF32(); // 0x78
+  result.nodeName = bs.readString(); // 0x5c
+  result.direction = {
+    // 0x60-0x68
     x: bs.readF32(),
     y: bs.readF32(),
     z: bs.readF32(),
   };
-  result.offset = {                       // 0x6c-0x74
+  result.offset = {
+    // 0x6c-0x74
     x: bs.readF32(),
     y: bs.readF32(),
     z: bs.readF32(),
   };
   // texture[0]: loop of 1 iteration, flag + conditional string
   if (bs.readFlag()) {
-    result.texture = bs.readString();     // 0x7c
+    result.texture = bs.readString(); // 0x7c
   }
   return result;
 }
@@ -2301,7 +2336,10 @@ export function registerDataBlockParsers(registry: ClassRegistry): void {
   });
 
   // Player/Vehicle types
-  registry.catalogDataBlock({ name: "PlayerData", unpackData: playerDataUnpack });
+  registry.catalogDataBlock({
+    name: "PlayerData",
+    unpackData: playerDataUnpack,
+  });
   registry.catalogDataBlock({
     name: "VehicleData",
     unpackData: vehicleDataUnpack,
@@ -2324,7 +2362,10 @@ export function registerDataBlockParsers(registry: ClassRegistry): void {
     name: "StaticShapeData",
     unpackData: staticShapeDataUnpack,
   });
-  registry.catalogDataBlock({ name: "TurretData", unpackData: turretDataUnpack });
+  registry.catalogDataBlock({
+    name: "TurretData",
+    unpackData: turretDataUnpack,
+  });
   registry.catalogDataBlock({
     name: "TurretImageData",
     unpackData: turretImageDataUnpack,
@@ -2396,8 +2437,14 @@ export function registerDataBlockParsers(registry: ClassRegistry): void {
     name: "ExplosionData",
     unpackData: explosionDataUnpack,
   });
-  registry.catalogDataBlock({ name: "DebrisData", unpackData: debrisDataUnpack });
-  registry.catalogDataBlock({ name: "SplashData", unpackData: splashDataUnpack });
+  registry.catalogDataBlock({
+    name: "DebrisData",
+    unpackData: debrisDataUnpack,
+  });
+  registry.catalogDataBlock({
+    name: "SplashData",
+    unpackData: splashDataUnpack,
+  });
   registry.catalogDataBlock({
     name: "ShockwaveData",
     unpackData: shockwaveDataUnpack,
@@ -2435,7 +2482,10 @@ export function registerDataBlockParsers(registry: ClassRegistry): void {
     name: "CameraData",
     unpackData: cameraDataUnpack,
   });
-  registry.catalogDataBlock({ name: "SensorData", unpackData: sensorDataUnpack });
+  registry.catalogDataBlock({
+    name: "SensorData",
+    unpackData: sensorDataUnpack,
+  });
   registry.catalogDataBlock({
     name: "TriggerData",
     unpackData: triggerDataUnpack,

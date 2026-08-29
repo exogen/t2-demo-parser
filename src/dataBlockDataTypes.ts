@@ -14,8 +14,17 @@ export interface HudImageEntry {
   renderName: boolean;
 }
 
+/**
+ * One ShapeBaseImageData state. Transition values are 1-based state
+ * indices (0 = no transition), in the engine's own packing order —
+ * binary-verified; earlier versions had the names rotated by two slots
+ * (no NotLoaded/Loaded, phantom generic0 pair) and consumers carried a
+ * remap table to compensate.
+ */
 export interface ImageState {
   name: string;
+  transitionOnNotLoaded: number;
+  transitionOnLoaded: number;
   transitionOnAmmo: number;
   transitionOnNoAmmo: number;
   transitionOnTarget: number;
@@ -25,8 +34,6 @@ export interface ImageState {
   transitionOnTriggerUp: number;
   transitionOnTriggerDown: number;
   transitionOnTimeout: number;
-  transitionGeneric0In: number;
-  transitionGeneric0Out: number;
   timeoutValue?: number;
   waitForTimeout: boolean;
   fire: boolean;
@@ -505,30 +512,40 @@ export interface ShockLanceProjectileDataBlock extends ProjectileDataBlock {
   emitter?: number | null;
 }
 
+/**
+ * Field names binary-verified against Tribes2.exe (build 25034):
+ * initPersistFields FUN_0064a860 / unpackData FUN_0064ae00. The ELF
+ * gun: a wavy main beam with lightning arcs around it.
+ */
 export interface ELFProjectileDataBlock extends ProjectileDataBlock {
   beamRange?: number;
-  beamDrainRate?: number;
-  muzzleVelocity?: number;
-  proximityRadius?: number;
-  startWidth?: number;
-  endWidth?: number;
-  mainBeamTexture?: string;
-  innerBeamTexture?: string;
-  flareTexture?: string;
-  hitEmitter?: number | null;
+  mainBeamWidth?: number;
+  mainBeamSpeed?: number;
+  mainBeamRepeat?: number;
+  lightningWidth?: number;
+  lightningDist?: number;
+  /** textures[0..2] — retail: ELFBeam, ELFLightning, BlueImpact. */
+  textures?: string[];
+  emitter?: number | null;
 }
 
+/**
+ * Field names binary-verified against Tribes2.exe (build 25034):
+ * initPersistFields FUN_00644910 / unpackData FUN_00644c40. The repair
+ * beam: a segmented ribbon (numSegments) with a blur trail.
+ */
 export interface RepairProjectileDataBlock extends ProjectileDataBlock {
   beamRange?: number;
-  beamRepairRate?: number;
-  muzzleVelocity?: number;
-  proximityRadius?: number;
-  startWidth?: number;
-  endWidth?: number;
-  startBeamWidth?: number;
-  endBeamWidth?: number;
-  mainBeamTexture?: string;
-  innerBeamTexture?: string;
+  beamWidth?: number;
+  /** Engine S32 (the old decode read its raw bits as a float). */
+  numSegments?: number;
+  beamSpeed?: number;
+  texRepeat?: number;
+  blurFreq?: number;
+  blurLifetime?: number;
+  cutoffAngle?: number;
+  /** textures[0..1] — retail: special/redbump2, special/redflare. */
+  textures?: string[];
 }
 
 export interface TargetProjectileDataBlock extends ProjectileDataBlock {
@@ -563,20 +580,27 @@ export interface TracerProjectileDataBlock extends LinearProjectileDataBlock {
   tracerTex1?: string;
 }
 
+/**
+ * Field names binary-verified against Tribes2.exe (build 25034):
+ * initPersistFields FUN_00694b40 / unpackData FUN_00694d80. The blaster
+ * bolt: an oriented additive quad (texture0) with an edge-on cross
+ * (texture1) and an untextured motion-blur tail (blur* fields).
+ */
 export interface EnergyProjectileDataBlock extends GrenadeProjectileDataBlock {
-  energyDrainPerSecond?: number;
-  energyMinDrain?: number;
-  beamWidth?: number;
-  beamRange?: number;
-  numSegments?: number;
-  texRepeat?: number;
-  beamFlareAngle?: number;
-  beamTexture?: string;
-  flareTexture?: string;
+  /** Cross fades in when the view angle cosine exceeds this (0x168). */
+  crossViewAng?: number;
+  crossSize?: number;
+  blurLifetime?: number;
+  blurWidth?: number;
+  /** Blur tail color; only RGB is transmitted (alpha defaults to 1). */
+  blurColor?: Color4;
+  /** texture[0] — the bolt quad (e.g. "special/blasterBolt"). */
+  texture0?: string;
+  /** texture[1] — the edge-on cross (e.g. "special/blasterBoltCross"). */
+  texture1?: string;
 }
 
-export interface LinearFlareProjectileDataBlock
-  extends LinearProjectileDataBlock {
+export interface LinearFlareProjectileDataBlock extends LinearProjectileDataBlock {
   numFlares?: number;
   flareColor?: Color4;
   flareTexture?: string;

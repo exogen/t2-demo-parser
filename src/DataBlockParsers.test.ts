@@ -3,8 +3,13 @@ import * as fs from "fs";
 import * as path from "path";
 import { DemoParser } from "./DemoParser.js";
 import type {
+  ELFProjectileDataBlock,
+  EnergyProjectileDataBlock,
   LinearProjectileDataBlock,
   PlayerDataBlock,
+  RepairProjectileDataBlock,
+  ShapeBaseImageDataBlock,
+  SniperProjectileDataBlock,
   TracerProjectileDataBlock,
 } from "./dataBlockDataTypes.js";
 
@@ -75,6 +80,137 @@ describe("projectile datablock field decoding", () => {
     expect(disc!.fizzleTimeMS).toBe(5024);
     // disc.cs: reflectOnWaterImpactAngle = 15.0.
     expect(disc!.reflectOnWaterImpactAngle).toBe(15);
+  });
+
+  it("decodes retail EnergyBolt (blaster) fields exactly", async () => {
+    const dataBlocks = await loadDataBlocks("exogen_Katabatic_vpad.rec");
+    let bolt: EnergyProjectileDataBlock | undefined;
+    for (const [, db] of dataBlocks) {
+      if (db.className === "EnergyProjectileData") {
+        bolt = db.data as EnergyProjectileDataBlock;
+        break;
+      }
+    }
+    expect(bolt, "retail EnergyBolt datablock").toBeDefined();
+    // blaster.cs: binary-verified names (initPersistFields FUN_00694b40,
+    // unpackData FUN_00694d80) — these were previously mislabeled with
+    // ELF-style beam field names.
+    expect(bolt!.crossViewAng).toBeCloseTo(0.99, 5);
+    expect(bolt!.crossSize).toBeCloseTo(0.55, 5);
+    expect(bolt!.blurLifetime).toBeCloseTo(0.2, 5);
+    expect(bolt!.blurWidth).toBeCloseTo(0.25, 5);
+    expect(bolt!.blurColor!.r).toBeCloseTo(0.4, 5);
+    expect(bolt!.blurColor!.g).toBeCloseTo(0, 5);
+    expect(bolt!.blurColor!.b).toBeCloseTo(0, 5);
+    expect(bolt!.texture0).toBe("special/blasterBolt");
+    expect(bolt!.texture1).toBe("special/blasterBoltCross");
+    // blaster.cs: scale = "0.25 20.0 1.0" (bolt quad half-width / length).
+    expect(bolt!.scale!.x).toBeCloseTo(0.25, 5);
+    expect(bolt!.scale!.y).toBeCloseTo(20, 5);
+  });
+
+  it("decodes retail BasicSniperShot (laser rifle) fields exactly", async () => {
+    const dataBlocks = await loadDataBlocks("exogen_Katabatic_vpad.rec");
+    let shot: SniperProjectileDataBlock | undefined;
+    for (const [, db] of dataBlocks) {
+      if (db.className === "SniperProjectileData") {
+        shot = db.data as SniperProjectileDataBlock;
+        break;
+      }
+    }
+    expect(shot, "retail BasicSniperShot datablock").toBeDefined();
+    // sniperRifle.cs values.
+    expect(shot!.maxRifleRange).toBeCloseTo(1000, 5);
+    expect(shot!.beamColor!.r).toBeCloseTo(1, 2);
+    expect(shot!.beamColor!.g).toBeCloseTo(0.1, 2);
+    expect(shot!.beamColor!.b).toBeCloseTo(0.1, 2);
+    expect(shot!.fadeTime).toBeCloseTo(1.0, 5);
+    expect(shot!.startBeamWidth).toBeCloseTo(0.145, 5);
+    expect(shot!.endBeamWidth).toBeCloseTo(0.25, 5);
+    expect(shot!.pulseSpeed).toBeCloseTo(6.0, 5);
+    expect(shot!.pulseLength).toBeCloseTo(0.15, 5);
+    expect(shot!.textures![0]).toBe("special/flare");
+    expect(shot!.textures![1]).toBe("special/nonlingradient");
+    expect(shot!.textures![2]).toBe("special/laserrip01");
+    expect(shot!.textures![11]).toBe("special/sniper00");
+  });
+
+  it("decodes both ELF datablocks (gun and turret) exactly", async () => {
+    const dataBlocks = await loadDataBlocks("exogen_Katabatic_vpad.rec");
+    const elfs: ELFProjectileDataBlock[] = [];
+    for (const [, db] of dataBlocks) {
+      if (db.className === "ELFProjectileData") {
+        elfs.push(db.data as ELFProjectileDataBlock);
+      }
+    }
+    // Binary-verified names (initPersistFields FUN_0064a860, unpackData
+    // FUN_0064ae00) — previously fabricated beam names. Two datablocks
+    // exist: the handheld BasicELF at beamRange 38 (the z0dd/ZOD server
+    // patch every surviving server lineage runs — "WHAT?? INCREASE ELF
+    // RANGE?!!? was 37"; the stock script says 30) and the stock
+    // ELFTurretBolt at 75 (ELFBarrelLarge.cs).
+    expect(elfs.map((e) => e.beamRange).sort((a, b) => a! - b!)).toEqual([
+      38, 75,
+    ]);
+    for (const elf of elfs) {
+      expect(elf.mainBeamWidth).toBeCloseTo(0.1, 5);
+      expect(elf.mainBeamSpeed).toBeCloseTo(9.0, 5);
+      expect(elf.mainBeamRepeat).toBeCloseTo(0.25, 5);
+      expect(elf.lightningWidth).toBeCloseTo(0.1, 5);
+      expect(elf.lightningDist).toBeCloseTo(0.15, 5);
+      expect(elf.textures).toEqual([
+        "special/ELFBeam",
+        "special/ELFLightning",
+        "special/BlueImpact",
+      ]);
+    }
+  });
+
+  it("decodes retail DefaultRepairBeam fields exactly", async () => {
+    const dataBlocks = await loadDataBlocks("exogen_Katabatic_vpad.rec");
+    let repair: RepairProjectileDataBlock | undefined;
+    for (const [, db] of dataBlocks) {
+      if (db.className === "RepairProjectileData") {
+        repair = db.data as RepairProjectileDataBlock;
+        break;
+      }
+    }
+    expect(repair, "retail DefaultRepairBeam datablock").toBeDefined();
+    // repairpack.cs: binary-verified names (initPersistFields
+    // FUN_00644910, unpackData FUN_00644c40); numSegments is an S32
+    // whose raw bits the old decode read as a float.
+    expect(repair!.beamRange).toBeCloseTo(10, 5);
+    expect(repair!.beamWidth).toBeCloseTo(0.15, 5);
+    expect(repair!.numSegments).toBe(20);
+    expect(repair!.texRepeat).toBeCloseTo(0.2, 5);
+    expect(repair!.blurFreq).toBeCloseTo(10.0, 5);
+    expect(repair!.blurLifetime).toBeCloseTo(1.0, 5);
+    expect(repair!.cutoffAngle).toBeCloseTo(25.0, 5);
+    expect(repair!.textures).toEqual(["special/redbump2", "special/redflare"]);
+  });
+
+  it("decodes image-state transitions in the engine packing order", async () => {
+    // Every retail weapon image opens Activate → (timeout) →
+    // ActivateReady (e.g. blaster.cs stateTransitionOnTimeout[0]).
+    // With the old rotated names, the timeout transition surfaced under
+    // transitionGeneric0Out and consumers carried a remap table.
+    const dataBlocks = await loadDataBlocks("exogen_Katabatic_vpad.rec");
+    let checked = 0;
+    for (const [, db] of dataBlocks) {
+      if (db.className !== "ShapeBaseImageData") continue;
+      const data = db.data as ShapeBaseImageDataBlock;
+      const states = data.states;
+      if (!states || states.length < 2) continue;
+      if (states[0].name.toLowerCase() !== "activate") continue;
+      const readyIndex = states.findIndex(
+        (st) => st.name.toLowerCase() === "activateready",
+      );
+      if (readyIndex < 0) continue;
+      // Transition values are 1-based state indices (0 = none).
+      expect(states[0].transitionOnTimeout).toBe(readyIndex + 1);
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(3);
   });
 
   it("decodes retail ChaingunBullet tracer fields exactly", async () => {
