@@ -1,4 +1,4 @@
-import { inflate } from "fflate";
+import { inflate, Inflate } from "fflate";
 import createDebug from "debug";
 import { BitStream } from "./BitStream.js";
 import { PacketParser } from "./PacketParser.js";
@@ -65,8 +65,25 @@ export class DemoParser {
   private _blockStreamOffset = 0;
   private _blockCount?: number;
   private _blockCursor = 0;
+  // Incremental mode: the compressed block stream arrives in chunks via
+  // push() and is inflated as it goes; nextBlock() treats the end of the
+  // decompressed data as a frontier (more may arrive) until finish().
+  private readonly _incremental: boolean;
+  private _complete = true;
+  private _inflator?: Inflate;
+  /** The zlib stream announced its own end (final deflate block seen) —
+   *  later bytes are trailing garbage and further pushes would throw. */
+  private _streamEnded = false;
+  /** Backing store for the growing decompressed stream (incremental
+   *  mode). `_decompressedData` is always a length-exact subarray of
+   *  this, so every existing `.length`-based read stays correct. */
+  private _backing?: Uint8Array;
+  private _decompressedLength = 0;
+  // Buffered-time scan state (see bufferedMoveTicks).
+  private _scanOffset = 0;
+  private _bufferedMoveTicks = 0;
 
-  constructor(buffer: Uint8Array) {
+  constructor(buffer: Uint8Array, options?: { incremental?: boolean }) {
     this.buffer = buffer;
     this.view = new DataView(
       buffer.buffer,
@@ -74,6 +91,7 @@ export class DemoParser {
       buffer.byteLength,
     );
     this.offset = 0;
+    this._incremental = options?.incremental === true;
     this.registry = new ClassRegistry();
     this.ghostTracker = new GhostTracker();
 
@@ -220,6 +238,16 @@ export class DemoParser {
       header.initialBlockSize,
     );
 
+    if (
+      this._incremental &&
+      this.buffer.length < this.offset + header.initialBlockSize
+    ) {
+      throw new RangeError(
+        `incremental parser needs the full initial block up front: have ${
+          this.buffer.length - this.offset
+        } bytes, need ${header.initialBlockSize}`,
+      );
+    }
     const initialBlockData = this.buffer.subarray(
       this.offset,
       this.offset + header.initialBlockSize,
@@ -227,26 +255,46 @@ export class DemoParser {
     const initialBlock = this.readInitialBlock(initialBlockData);
     this.offset += header.initialBlockSize;
 
-    // Phase 2: async decompress block stream
-    const compressedData = this.buffer.subarray(this.offset);
-    debug("compressed block stream: %d bytes", compressedData.length);
+    if (this._incremental) {
+      // Phase 2 (incremental): streaming inflate. Compressed bytes
+      // arrive via push(); whatever tail the constructor buffer already
+      // holds past the initial block is the first chunk. fflate's
+      // Inflate emits decompressed output synchronously during push.
+      this._complete = false;
+      this._decompressedLength = 0;
+      this._backing = new Uint8Array(1 << 20);
+      this._decompressedData = this._backing.subarray(0, 0);
+      this._decompressedView = new DataView(this._backing.buffer, 0, 0);
+      this._inflator = new Inflate((chunk, final) => {
+        this._appendDecompressed(chunk);
+        if (final) this._streamEnded = true;
+      });
+      const tail = this.buffer.subarray(this.offset);
+      // The prefix buffer has served its purpose (header + initial block
+      // are parsed); don't retain arbitrary compressed tail bytes twice.
+      if (tail.length > 0) this._inflator.push(tail);
+    } else {
+      // Phase 2: async decompress block stream
+      const compressedData = this.buffer.subarray(this.offset);
+      debug("compressed block stream: %d bytes", compressedData.length);
 
-    const decompressedData = await new Promise<Uint8Array>(
-      (resolve, reject) => {
-        inflate(compressedData, (err, data) => {
-          if (err) reject(err);
-          else resolve(data);
-        });
-      },
-    );
-    debug("decompressed block stream: %d bytes", decompressedData.length);
+      const decompressedData = await new Promise<Uint8Array>(
+        (resolve, reject) => {
+          inflate(compressedData, (err, data) => {
+            if (err) reject(err);
+            else resolve(data);
+          });
+        },
+      );
+      debug("decompressed block stream: %d bytes", decompressedData.length);
 
-    this._decompressedData = decompressedData;
-    this._decompressedView = new DataView(
-      decompressedData.buffer,
-      decompressedData.byteOffset,
-      decompressedData.byteLength,
-    );
+      this._decompressedData = decompressedData;
+      this._decompressedView = new DataView(
+        decompressedData.buffer,
+        decompressedData.byteOffset,
+        decompressedData.byteLength,
+      );
+    }
 
     // Phase 3: set up PacketParser with seeded ghost tracker
     this.setupPacketParser(initialBlock);
@@ -259,6 +307,156 @@ export class DemoParser {
     this._loaded = true;
 
     return { header, initialBlock };
+  }
+
+  /**
+   * Parse just the fixed-size demo header from a byte prefix, without
+   * constructing a parser. Throws RangeError when `bytes` is too short —
+   * callers streaming a download retry as more data arrives. The
+   * returned `byteLength` is where the initial block begins; the block
+   * stream begins at `byteLength + header.initialBlockSize`.
+   */
+  static peekHeader(bytes: Uint8Array): {
+    header: DemoHeader;
+    byteLength: number;
+  } {
+    if (bytes.length < 1) throw new RangeError("incomplete header");
+    const strLen = bytes[0];
+    const byteLength = 1 + strLen + 12;
+    if (bytes.length < byteLength) throw new RangeError("incomplete header");
+    const identString = new TextDecoder("ascii").decode(
+      bytes.subarray(1, 1 + strLen),
+    );
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    const protocolVersion = view.getUint32(1 + strLen, true);
+    const demoLengthMs = view.getUint32(1 + strLen + 4, true);
+    const initialBlockSize = view.getUint32(1 + strLen + 8, true);
+    return {
+      header: { identString, protocolVersion, demoLengthMs, initialBlockSize },
+      byteLength,
+    };
+  }
+
+  /**
+   * Incremental mode only: feed the next chunk of raw (compressed) block
+   * stream bytes as they arrive. Inflation happens synchronously; any
+   * blocks completed by this chunk become readable via nextBlock().
+   * The chunk is not retained.
+   */
+  push(chunk: Uint8Array): void {
+    if (!this._incremental) throw new Error("not an incremental parser");
+    if (!this._loaded) throw new Error("must call load() first");
+    if (this._complete) throw new Error("already finished");
+    if (chunk.length === 0 || this._streamEnded) return;
+    this._inflator!.push(chunk);
+  }
+
+  /**
+   * Incremental mode only: signal that the download is complete. Flushes
+   * the inflator; after this, running out of blocks means the true end
+   * of the demo rather than the frontier.
+   */
+  finish(): void {
+    if (!this._incremental) throw new Error("not an incremental parser");
+    if (!this._loaded) throw new Error("must call load() first");
+    if (this._complete) return;
+    if (!this._streamEnded) {
+      try {
+        this._inflator!.push(new Uint8Array(0), true);
+      } catch (err) {
+        // A truncated zlib stream: the blocks inflated so far remain
+        // valid (nextBlock bounds-checks the tail) — degrade to a
+        // shorter demo rather than failing the whole load.
+        debug("finish(): inflate flush failed: %o", err);
+      }
+    }
+    this._inflator = undefined;
+    this._complete = true;
+    // Trim: the doubling backing store can overshoot by up to 2× —
+    // release the slack now that the final length is known.
+    if (this._backing && this._backing.length > this._decompressedLength) {
+      const exact = this._backing.slice(0, this._decompressedLength);
+      this._backing = exact;
+      this._decompressedData = exact;
+      this._decompressedView = new DataView(
+        exact.buffer,
+        exact.byteOffset,
+        exact.byteLength,
+      );
+    }
+  }
+
+  /**
+   * False only in incremental mode before finish(): nextBlock()
+   * returning undefined then means "frontier — more data may arrive",
+   * not the end of the demo.
+   */
+  get isComplete(): boolean {
+    return this._complete;
+  }
+
+  /**
+   * Bytes of decompressed block stream available so far. Grows during
+   * an incremental feed; consumers that latched an "out of blocks"
+   * state can compare against it to know new data has arrived.
+   */
+  get decompressedByteLength(): number {
+    return this._incremental
+      ? this._decompressedLength
+      : (this._decompressedData?.length ?? 0);
+  }
+
+  /**
+   * Move-tick blocks in the decompressed stream so far — each is one
+   * fixed 32ms simulation tick, so this measures buffered DEMO TIME
+   * exactly (compressed bytes don't: quiet stretches pack far denser).
+   * Independent of the read cursor; unaffected by reset(). Maintained
+   * incrementally as data arrives; a full lazy scan on first access
+   * covers the one-shot mode.
+   */
+  get bufferedMoveTicks(): number {
+    this._scanBufferedTicks();
+    return this._bufferedMoveTicks;
+  }
+
+  private _scanBufferedTicks(): void {
+    const data = this._decompressedData;
+    const view = this._decompressedView;
+    if (!data || !view) return;
+    let off = this._scanOffset;
+    let ticks = this._bufferedMoveTicks;
+    while (off + 2 <= data.length) {
+      const typeSize = view.getUint16(off, true);
+      const size = typeSize & 0xfff;
+      if (off + 2 + size > data.length) break;
+      if (typeSize >> 12 === BlockTypeMove) ticks++;
+      off += 2 + size;
+    }
+    this._scanOffset = off;
+    this._bufferedMoveTicks = ticks;
+  }
+
+  private _appendDecompressed(chunk: Uint8Array): void {
+    if (chunk.length === 0) return;
+    const needed = this._decompressedLength + chunk.length;
+    let backing = this._backing!;
+    if (needed > backing.length) {
+      let capacity = backing.length;
+      while (capacity < needed) capacity *= 2;
+      const grown = new Uint8Array(capacity);
+      grown.set(backing.subarray(0, this._decompressedLength));
+      backing = grown;
+      this._backing = grown;
+    }
+    backing.set(chunk, this._decompressedLength);
+    this._decompressedLength = needed;
+    // Refresh the exact-length views; subarray shares memory, so this is
+    // cheap and keeps every `.length`-based reader (nextBlock,
+    // blockCount) correct without touching them.
+    this._decompressedData = backing.subarray(0, needed);
+    this._decompressedView = new DataView(backing.buffer, 0, needed);
+    // The lazily-cached block count no longer covers the new bytes.
+    this._blockCount = undefined;
   }
 
   /**
