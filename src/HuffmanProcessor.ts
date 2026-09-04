@@ -1,4 +1,5 @@
 import type { BitStream } from "./BitStream.js";
+import type { BitWriter } from "./BitWriter.js";
 
 // Hardcoded character frequency table from the V12 engine (bitStream.cc)
 // These are used to build the Huffman tree for string compression.
@@ -54,6 +55,14 @@ function wrapGetPop(w: HuffWrap): number {
   return w.leaf!.pop;
 }
 
+/** Strings longer than this cannot be encoded (8-bit length prefix). */
+export const MaxHuffStringLength = 255;
+
+/**
+ * Port of the engine's HuffmanProcessor (bitStream.cc). The tree is built
+ * once from the fixed frequency table, so decoding depends on nothing but
+ * the wire bits.
+ */
 export class HuffmanProcessor {
   private nodes: HuffNode[] = [];
   private leaves: HuffLeaf[] = [];
@@ -188,6 +197,45 @@ export class HuffmanProcessor {
       const len = stream.readInt(8);
       const bytes = stream.readBytes(len);
       return String.fromCharCode(...bytes);
+    }
+  }
+
+  /**
+   * Encode a string the way the engine's writeHuffBuffer does: a flag
+   * selecting compressed vs. raw bytes (compressed only when it is
+   * shorter), an 8-bit length, then either Huffman codes or raw bytes.
+   * Characters are written as Latin-1 bytes (code units above 255 throw).
+   */
+  writeHuffBuffer(writer: BitWriter, value: string): void {
+    if (!this.tablesBuilt) {
+      this.buildTables();
+    }
+    if (value.length > MaxHuffStringLength) {
+      throw new RangeError(
+        `string too long for Huffman buffer: ${value.length} > ${MaxHuffStringLength}`,
+      );
+    }
+    const codes = new Array<number>(value.length);
+    let numBits = 0;
+    for (let i = 0; i < value.length; i++) {
+      const c = value.charCodeAt(i);
+      if (c > 255) {
+        throw new RangeError(`non-Latin-1 character at index ${i}`);
+      }
+      codes[i] = c;
+      numBits += this.leaves[c].numBits;
+    }
+    if (numBits >= value.length * 8) {
+      writer.writeFlag(false);
+      writer.writeInt(value.length, 8);
+      for (const c of codes) writer.writeInt(c, 8);
+    } else {
+      writer.writeFlag(true);
+      writer.writeInt(value.length, 8);
+      for (const c of codes) {
+        const leaf = this.leaves[c];
+        writer.writeInt(leaf.code, leaf.numBits);
+      }
     }
   }
 }

@@ -71,6 +71,9 @@ import type {
  * getBitCount(getNextPow2(0x800)) = 11 bits.
  * If flag is false, sets objectId to -1 (0xFFFFFFFF).
  */
+/** particleEngine.cc: PDC_MAX_TEX. */
+const ParticleDataMaxTextures = 50;
+
 function readDataBlockRef(bs: BitStream): number | null {
   return bs.readFlag() ? bs.readInt(11) : null;
 }
@@ -88,6 +91,11 @@ function readRangedS32(bs: BitStream, min: number, max: number): number {
  * From decompiled binary: FUN_0043f040 calls FUN_0043efe0 which reads 4 × stream->read(1, &byte).
  * Each byte is multiplied by 1/255.0 to produce the float value.
  * NOTE: This is NOT 4×F32 (128 bits) — it's 4×U8 (32 bits).
+ *
+ * Colour representation follows the engine's own field type: fields the
+ * engine stores as ColorF (this reader) are normalised to [0, 1]; fields
+ * it stores as ColorI (sensorColor, sensor group colours) keep the raw
+ * 0–255 bytes.
  */
 function readColorF(bs: BitStream): {
   r: number;
@@ -109,19 +117,34 @@ function readColorF(bs: BitStream): {
  * Many DataBlock fields use write(sizeof(bool)) instead of writeFlag().
  */
 function readBool(bs: BitStream): boolean {
-  return bs.readInt(8) !== 0;
+  return bs.readBool();
 }
 
-/**
- * Read a ranged float: min + readInt(bits) / ((1 << bits) - 1) * (max - min).
- */
+/** Read a ranged float: min + readFloat(bits) * (max - min). */
 function readRangedF32(
   bs: BitStream,
   min: number,
   max: number,
   bits: number,
 ): number {
-  return min + (bs.readInt(bits) / ((1 << bits) - 1)) * (max - min);
+  return min + bs.readFloat(bits) * (max - min);
+}
+
+/**
+ * Read a U32 count and reject it unless `minBitsPerEntry × count` bits
+ * remain: exhausted reads return 0 without throwing, so a corrupt count
+ * would otherwise spin allocating until memory ran out.
+ */
+function readCheckedCount(
+  bs: BitStream,
+  minBitsPerEntry: number,
+  what: string,
+): number {
+  const count = bs.readU32();
+  if (count > bs.getRemainingBits() / minBitsPerEntry) {
+    throw new Error(`Invalid ${what}: ${count}`);
+  }
+  return count;
 }
 
 // ============================================================
@@ -167,6 +190,7 @@ function shapeBaseDataUnpack(bs: BitStream): ShapeBaseDataBlock {
 
   // sensorRadius — flag; if true: readInt(10) + 4×U8 (RGBA bytes)
   // Binary: readInt(10) → this+0x15c (cast to float), then 4 × read(1) → 0x160-0x163
+  // sensorColor is a ColorI in the engine, so the bytes are kept as-is.
   if (bs.readFlag()) {
     result.sensorRadius = bs.readInt(10);
     result.sensorColor = {
@@ -219,11 +243,7 @@ function shapeBaseDataUnpack(bs: BitStream): ShapeBaseDataBlock {
   // Binary: readFlag, if true: read(4) × 3 → this+0x98, 0x9c, 0xa0
   // NOTE: This field is NOT in the V12 reference source — Tribes 2 addition.
   if (bs.readFlag()) {
-    result.shieldEffectScale = {
-      x: bs.readF32(),
-      y: bs.readF32(),
-      z: bs.readF32(),
-    };
+    result.shieldEffectScale = bs.readPoint3F();
   }
 
   // HUD images loop (8 iterations, NumHudRenderImages=8)
@@ -324,11 +344,7 @@ function shapeBaseImageDataUnpack(bs: BitStream): ShapeBaseImageDataBlock {
   }
 
   // shellExitDir — 3×F32 (mathWrite Point3F)
-  result.shellExitDir = {
-    x: bs.readF32(),
-    y: bs.readF32(),
-    z: bs.readF32(),
-  };
+  result.shellExitDir = bs.readPoint3F();
 
   // shellExitVariance — F32
   result.shellExitVariance = bs.readF32();
@@ -484,9 +500,7 @@ function playerDataUnpack(bs: BitStream): PlayerDataBlock {
 
   // 3. 2 optional DataBlock refs (readClassId pattern)
   result.jetEmitter = readDataBlockRef(bs); // 0x368 (jetEmitter @0x364)
-  if (bs.readFlag()) {
-    result.jetEffect = bs.readInt(11); // 0x370 (jetEffect @0x36c; no else/-1)
-  }
+  result.jetEffect = readDataBlockRef(bs); // 0x370 (jetEffect @0x36c)
 
   // 4. 9× F32 (offsets 0x374-0x394)
   result.runForce = bs.readF32(); // 0x374
@@ -541,20 +555,12 @@ function playerDataUnpack(bs: BitStream): PlayerDataBlock {
   // Binary: zeros 0x428+i*4, then flag + readClassId → 0x4a8+i*4
   const sounds: (number | null)[] = [];
   for (let i = 0; i < 32; i++) {
-    if (bs.readFlag()) {
-      sounds.push(bs.readInt(11));
-    } else {
-      sounds.push(null);
-    }
+    sounds.push(readDataBlockRef(bs));
   }
   result.sounds = sounds;
 
   // 12. boxSize 3×F32 (offsets 0x528, 0x52c, 0x530)
-  result.boxSize = {
-    x: bs.readF32(),
-    y: bs.readF32(),
-    z: bs.readF32(),
-  };
+  result.boxSize = bs.readPoint3F();
 
   // 13. footPuffEmitter + 2 F32s (offset 0xcf0, 0xcf4, 0xcf8)
   result.footPuffEmitter = readDataBlockRef(bs);
@@ -667,16 +673,8 @@ function vehicleDataUnpack(bs: BitStream): VehicleDataBlock {
   result.splashEmitters = splashEmitters;
 
   // 8. 2×3 F32 damage emitter offsets (2 sets of x,y,z) → offsets 0x3e8-0x3f4
-  result.damageEmitterOffset0 = {
-    x: bs.readF32(),
-    y: bs.readF32(),
-    z: bs.readF32(),
-  };
-  result.damageEmitterOffset1 = {
-    x: bs.readF32(),
-    y: bs.readF32(),
-    z: bs.readF32(),
-  };
+  result.damageEmitterOffset0 = bs.readPoint3F();
+  result.damageEmitterOffset1 = bs.readPoint3F();
 
   // 9. 2 F32 damage level tolerance → offsets 0x400, 0x404
   result.damageLevelTolerance0 = bs.readF32();
@@ -759,11 +757,7 @@ function hoverVehicleDataUnpack(bs: BitStream): HoverVehicleDataBlock {
   result.brakingForce = bs.readF32();
 
   // 3×F32 (dustTrailOffset)
-  result.dustTrailOffset = {
-    x: bs.readF32(),
-    y: bs.readF32(),
-    z: bs.readF32(),
-  };
+  result.dustTrailOffset = bs.readPoint3F();
 
   // 2 F32s
   result.dustTrailFreqMod = bs.readF32();
@@ -936,11 +930,7 @@ function projectileDataUnpack(bs: BitStream): ProjectileDataBlock {
 
   // flag(nonDefaultScale); if true: 3×F32
   if (bs.readFlag()) {
-    result.scale = {
-      x: bs.readF32(),
-      y: bs.readF32(),
-      z: bs.readF32(),
-    };
+    result.scale = bs.readPoint3F();
   }
 
   // 9 readDataBlockRef fields in pack order (verified against decompiled
@@ -1471,16 +1461,8 @@ function explosionDataUnpack(bs: BitStream): ExplosionDataBlock {
   result.hasLight = bs.readFlag();
 
   // 9×F32
-  result.camShakeFreq = {
-    x: bs.readF32(),
-    y: bs.readF32(),
-    z: bs.readF32(),
-  };
-  result.camShakeAmp = {
-    x: bs.readF32(),
-    y: bs.readF32(),
-    z: bs.readF32(),
-  };
+  result.camShakeFreq = bs.readPoint3F();
+  result.camShakeAmp = bs.readPoint3F();
   result.camShakeDuration = bs.readF32();
   result.camShakeRadius = bs.readF32();
   result.camShakeFalloff = bs.readF32();
@@ -1543,9 +1525,11 @@ function debrisDataUnpack(bs: BitStream): DebrisDataBlock {
   result.lifetime = bs.readF32(); // 0x54
   result.lifetimeVariance = bs.readF32(); // 0x58
 
-  // "Written twice" bug: same offsets 0x64/0x68 written again
-  result.minSpinSpeed_dup = bs.readF32();
-  result.maxSpinSpeed_dup = bs.readF32();
+  // The binary writes minSpinSpeed/maxSpinSpeed (0x64/0x68) a second
+  // time here; the client's second read overwrites the first, so do the
+  // same.
+  result.minSpinSpeed = bs.readF32();
+  result.maxSpinSpeed = bs.readF32();
 
   result.velocity = bs.readF32(); // 0x44
   result.velocityVariance = bs.readF32(); // 0x48
@@ -1581,11 +1565,7 @@ function splashDataUnpack(bs: BitStream): SplashDataBlock {
   const result: SplashDataBlock = {};
 
   // 3×F32 (scale)
-  result.scale = {
-    x: bs.readF32(),
-    y: bs.readF32(),
-    z: bs.readF32(),
-  };
+  result.scale = bs.readPoint3F();
 
   // ~15 F32/S32 values
   result.delayMS = bs.readS32();
@@ -1641,11 +1621,7 @@ function shockwaveDataUnpack(bs: BitStream): ShockwaveDataBlock {
   const result: ShockwaveDataBlock = {};
 
   // 3×F32 (scale)
-  result.scale = {
-    x: bs.readF32(),
-    y: bs.readF32(),
-    z: bs.readF32(),
-  };
+  result.scale = bs.readPoint3F();
 
   // ~17 F32/S32/bool values
   result.delayMS = bs.readS32();
@@ -1739,9 +1715,15 @@ function particleEmitterDataUnpack(bs: BitStream): ParticleEmitterDataBlock {
   // Verified against decompiled binary FUN_006222a0:
   //   read(4, &count) → U32 count
   //   for each: readFlag → if true: FUN_00436d10 (readClassId, 11 bits); else: 0xFFFFFFFF
-  const particleCount = bs.readU32();
+  // particleEngine.cc sizes the vector straight from the count (no cap);
+  // each entry is at least the 1-bit presence flag.
+  const particleCount = readCheckedCount(
+    bs,
+    1,
+    "ParticleEmitterData particle count",
+  );
   const particles: (number | null)[] = [];
-  for (let i = 0; i < particleCount && i < 16; i++) {
+  for (let i = 0; i < particleCount; i++) {
     particles.push(readDataBlockRef(bs));
   }
   result.particles = particles;
@@ -1801,10 +1783,14 @@ function particleDataUnpack(bs: BitStream): ParticleDataBlock {
   }
   result.keys = keys;
 
-  // readInt(6) texCount; per tex: readString
+  // readInt(6) texCount; per tex: readString. The writer only emits up
+  // to PDC_MAX_TEX names, so a larger count means the stream is corrupt.
   const texCount = bs.readInt(6);
+  if (texCount > ParticleDataMaxTextures) {
+    throw new Error(`Invalid ParticleData texture count: ${texCount}`);
+  }
   const textures: string[] = [];
-  for (let i = 0; i < texCount && i < 50; i++) {
+  for (let i = 0; i < texCount; i++) {
     textures.push(bs.readString());
   }
   result.textures = textures;
@@ -2241,7 +2227,7 @@ function tsShapeConstructorUnpack(bs: BitStream): TSShapeConstructorDataBlock {
   result.shape = bs.readString();
   const count = bs.readInt(7);
   const sequences: string[] = [];
-  for (let i = 0; i < count && i < 128; i++) {
+  for (let i = 0; i < count; i++) {
     sequences.push(bs.readString());
   }
   result.sequences = sequences;

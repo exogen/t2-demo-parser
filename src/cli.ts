@@ -92,6 +92,9 @@ console.log(
 console.log(
   `Demo length: ${demo.header.demoLengthMs}ms (${formatTime(demo.header.demoLengthMs)})`
 );
+for (const warning of demo.initialBlock.warnings) {
+  console.log(`WARNING (initial block): ${warning}`);
+}
 
 const moveBlocks = demo.blocks.filter((b) => b.type === BlockTypeMove);
 const infoBlocks = demo.blocks.filter((b) => b.type === BlockTypeInfo);

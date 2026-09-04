@@ -4,7 +4,7 @@ import type { Vec3, Color3, Color4, AffineTransform } from "./dataTypes.js";
 // Sub-structures
 // ---------------------------------------------------------------------------
 
-export interface HudImageEntry {
+export type HudImageEntry = {
   friendlyName: string;
   enemyName?: string;
   renderCenter: boolean;
@@ -12,7 +12,7 @@ export interface HudImageEntry {
   renderAlways: boolean;
   renderDistance: boolean;
   renderName: boolean;
-}
+};
 
 /**
  * One ShapeBaseImageData state. Transition values are 1-based state
@@ -21,7 +21,7 @@ export interface HudImageEntry {
  * (no NotLoaded/Loaded, phantom generic0 pair) and consumers carried a
  * remap table to compensate.
  */
-export interface ImageState {
+export type ImageState = {
   name: string;
   transitionOnNotLoaded: number;
   transitionOnLoaded: number;
@@ -53,24 +53,23 @@ export interface ImageState {
   emitterTime?: number;
   emitterNode?: number;
   sound: number | null;
-}
+};
 
-export interface ParticleKey {
+export type ParticleKey = {
   r: number;
   g: number;
   b: number;
   a: number;
   size: number;
   time: number;
-}
+};
 
 // ---------------------------------------------------------------------------
 // Base DataBlock types
 // ---------------------------------------------------------------------------
 
-export interface SimDataBlock {
-  [key: string]: unknown;
-}
+export type SimDataBlock = {
+};
 
 export interface GameBaseDataBlock extends SimDataBlock {}
 
@@ -78,7 +77,7 @@ export interface GameBaseDataBlock extends SimDataBlock {}
 // ShapeBase hierarchy
 // ---------------------------------------------------------------------------
 
-export interface ShapeBaseDataBlock extends GameBaseDataBlock {
+export type ShapeBaseDataBlock = GameBaseDataBlock & {
   crc?: number;
   shapeName?: string;
   mass?: number;
@@ -112,9 +111,9 @@ export interface ShapeBaseDataBlock extends GameBaseDataBlock {
   shieldEffectLifetimeMS?: number;
   shieldEffectScale?: Vec3;
   hudImages?: HudImageEntry[];
-}
+};
 
-export interface ShapeBaseImageDataBlock extends GameBaseDataBlock {
+export type ShapeBaseImageDataBlock = GameBaseDataBlock & {
   crc?: number;
   shapeName?: string;
   mountPoint?: number;
@@ -144,7 +143,7 @@ export interface ShapeBaseImageDataBlock extends GameBaseDataBlock {
   casing?: number | null;
   accuFire?: boolean;
   states?: ImageState[];
-}
+};
 
 // ---------------------------------------------------------------------------
 // Player
@@ -155,7 +154,7 @@ export interface ShapeBaseImageDataBlock extends GameBaseDataBlock {
  * against Tribes2.exe (build 25034) initPersistFields offsets — the
  * retail struct layout differs from the SVN engine source.
  */
-export interface PlayerDataBlock extends ShapeBaseDataBlock {
+export type PlayerDataBlock = ShapeBaseDataBlock & {
   renderFirstPerson?: boolean;
   minLookAngle?: number;
   maxLookAngle?: number;
@@ -173,7 +172,7 @@ export interface PlayerDataBlock extends ShapeBaseDataBlock {
   maxJetForwardSpeed?: number;
   maxJetHorizontalPercentage?: number;
   jetEmitter?: number | null;
-  jetEffect?: number;
+  jetEffect?: number | null;
   runForce?: number;
   runEnergyDrain?: number;
   minRunEnergy?: number;
@@ -227,13 +226,13 @@ export interface PlayerDataBlock extends ShapeBaseDataBlock {
   /** Heat signature rates (Tribes 2; retail player.cs: 1/4 and 1/3). */
   heatDecayPerSec?: number;
   heatIncreasePerSec?: number;
-}
+};
 
 // ---------------------------------------------------------------------------
 // Vehicles
 // ---------------------------------------------------------------------------
 
-export interface VehicleDataBlock extends ShapeBaseDataBlock {
+export type VehicleDataBlock = ShapeBaseDataBlock & {
   bodyRestitution?: number;
   bodyFriction?: number;
   impactSounds?: (number | null)[];
@@ -249,6 +248,9 @@ export interface VehicleDataBlock extends ShapeBaseDataBlock {
   jetForce?: number;
   jetEnergyDrain?: number;
   minJetEnergy?: number;
+  triggerDustHeight?: number;
+  dustHeight?: number;
+  numDmgEmitterAreas?: number;
   integration?: number;
   collisionTol?: number;
   massCenter?: number;
@@ -268,9 +270,9 @@ export interface VehicleDataBlock extends ShapeBaseDataBlock {
   splashVelEpsilon?: number;
   collDamageThresholdVel?: number;
   collDamageMultiplier?: number;
-}
+};
 
-export interface FlyingVehicleDataBlock extends VehicleDataBlock {
+export type FlyingVehicleDataBlock = VehicleDataBlock & {
   jetActivateSound?: number | null;
   jetDeactivateSound?: number | null;
   jetEmitters?: (number | null)[];
@@ -290,9 +292,9 @@ export interface FlyingVehicleDataBlock extends VehicleDataBlock {
   minTrailSpeed?: number;
   vertThrustMultiple?: number;
   maxForwardSpeed?: number;
-}
+};
 
-export interface HoverVehicleDataBlock extends VehicleDataBlock {
+export type HoverVehicleDataBlock = VehicleDataBlock & {
   dragForce?: number;
   mainThrustForce?: number;
   reverseThrustForce?: number;
@@ -321,9 +323,9 @@ export interface HoverVehicleDataBlock extends VehicleDataBlock {
   mainThrustEmitterFactor?: number;
   strafeThrustEmitterFactor?: number;
   reverseThrustEmitterFactor?: number;
-}
+};
 
-export interface WheeledVehicleDataBlock extends VehicleDataBlock {
+export type WheeledVehicleDataBlock = VehicleDataBlock & {
   tireRadius?: number;
   tireStaticFriction?: number;
   tireKineticFriction?: number;
@@ -349,18 +351,18 @@ export interface WheeledVehicleDataBlock extends VehicleDataBlock {
   steeringReturn?: number;
   steeringDamping?: number;
   powerSteeringFactor?: number;
-}
+};
 
 // ---------------------------------------------------------------------------
 // Static shapes and turrets
 // ---------------------------------------------------------------------------
 
-export interface StaticShapeDataBlock extends ShapeBaseDataBlock {
+export type StaticShapeDataBlock = ShapeBaseDataBlock & {
   noIndividualDamage?: boolean;
   dynamicTypeField?: number;
-}
+};
 
-export interface TurretDataBlock extends StaticShapeDataBlock {
+export type TurretDataBlock = StaticShapeDataBlock & {
   thetaMin?: number;
   thetaMax?: number;
   thetaNull?: number;
@@ -368,9 +370,9 @@ export interface TurretDataBlock extends StaticShapeDataBlock {
   primaryAxis?: number;
   maxCapacitorEnergy?: number;
   capacitorRechargeRate?: number;
-}
+};
 
-export interface TurretImageDataBlock extends ShapeBaseImageDataBlock {
+export type TurretImageDataBlock = ShapeBaseImageDataBlock & {
   activationMS?: number;
   deactivateDelayMS?: number;
   degPerSecTheta?: number;
@@ -378,13 +380,13 @@ export interface TurretImageDataBlock extends ShapeBaseImageDataBlock {
   dontFireInsideDamageRadius?: boolean;
   damageRadius?: number;
   useCapacitor?: boolean;
-}
+};
 
 // ---------------------------------------------------------------------------
 // Items
 // ---------------------------------------------------------------------------
 
-export interface ItemDataBlock extends ShapeBaseDataBlock {
+export type ItemDataBlock = ShapeBaseDataBlock & {
   friction?: number;
   elasticity?: number;
   sticky?: boolean;
@@ -395,13 +397,13 @@ export interface ItemDataBlock extends ShapeBaseDataBlock {
   lightTime?: number;
   lightRadius?: number;
   lightOnlyStatic?: boolean;
-}
+};
 
 // ---------------------------------------------------------------------------
 // Projectiles
 // ---------------------------------------------------------------------------
 
-export interface ProjectileDataBlock extends GameBaseDataBlock {
+export type ProjectileDataBlock = GameBaseDataBlock & {
   projectileShapeName?: string;
   faceViewerLinkTime?: number;
   lifetime?: number;
@@ -422,13 +424,13 @@ export interface ProjectileDataBlock extends GameBaseDataBlock {
   underwaterLightColor?: Color3;
   explodeOnWaterImpact?: boolean;
   depthTolerance?: number;
-}
+};
 
 /**
  * Field names binary-verified against Tribes2.exe (build 25034):
  * initPersistFields FUN_0062b3c0 / unpackData FUN_0062bea0.
  */
-export interface LinearProjectileDataBlock extends ProjectileDataBlock {
+export type LinearProjectileDataBlock = ProjectileDataBlock & {
   dryVelocity?: number;
   wetVelocity?: number;
   /** Milliseconds, tick-rounded (32ms) by the engine's onAdd. */
@@ -443,9 +445,9 @@ export interface LinearProjectileDataBlock extends ProjectileDataBlock {
   fizzleUnderwaterMS?: number;
   activateDelayMS?: number;
   doDynamicClientHits?: boolean;
-}
+};
 
-export interface GrenadeProjectileDataBlock extends ProjectileDataBlock {
+export type GrenadeProjectileDataBlock = ProjectileDataBlock & {
   armingDelayMS?: number;
   muzzleVelocity?: number;
   grenadeElasticity?: number;
@@ -454,9 +456,9 @@ export interface GrenadeProjectileDataBlock extends ProjectileDataBlock {
   density?: number;
   gravityMod?: number;
   lifetimeMS?: number;
-}
+};
 
-export interface SeekerProjectileDataBlock extends ProjectileDataBlock {
+export type SeekerProjectileDataBlock = ProjectileDataBlock & {
   lifetimeMS?: number;
   muzzleVelocity?: number;
   turningSpeed?: number;
@@ -477,9 +479,9 @@ export interface SeekerProjectileDataBlock extends ProjectileDataBlock {
   casingDebris?: number | null;
   puffEmitter?: number | null;
   exhaustEmitter?: number | null;
-}
+};
 
-export interface SniperProjectileDataBlock extends ProjectileDataBlock {
+export type SniperProjectileDataBlock = ProjectileDataBlock & {
   maxRifleRange?: number;
   rifleHeadMultiplier?: number;
   beamColor?: Color4;
@@ -493,9 +495,9 @@ export interface SniperProjectileDataBlock extends ProjectileDataBlock {
   pulseSpeed?: number;
   pulseLength?: number;
   textures?: string[];
-}
+};
 
-export interface ShockLanceProjectileDataBlock extends ProjectileDataBlock {
+export type ShockLanceProjectileDataBlock = ProjectileDataBlock & {
   zapDuration?: number;
   boltLength?: number;
   numParts?: number;
@@ -510,14 +512,14 @@ export interface ShockLanceProjectileDataBlock extends ProjectileDataBlock {
   texWrap?: number[];
   textures?: string[];
   emitter?: number | null;
-}
+};
 
 /**
  * Field names binary-verified against Tribes2.exe (build 25034):
  * initPersistFields FUN_0064a860 / unpackData FUN_0064ae00. The ELF
  * gun: a wavy main beam with lightning arcs around it.
  */
-export interface ELFProjectileDataBlock extends ProjectileDataBlock {
+export type ELFProjectileDataBlock = ProjectileDataBlock & {
   beamRange?: number;
   mainBeamWidth?: number;
   mainBeamSpeed?: number;
@@ -527,14 +529,14 @@ export interface ELFProjectileDataBlock extends ProjectileDataBlock {
   /** textures[0..2] — retail: ELFBeam, ELFLightning, BlueImpact. */
   textures?: string[];
   emitter?: number | null;
-}
+};
 
 /**
  * Field names binary-verified against Tribes2.exe (build 25034):
  * initPersistFields FUN_00644910 / unpackData FUN_00644c40. The repair
  * beam: a segmented ribbon (numSegments) with a blur trail.
  */
-export interface RepairProjectileDataBlock extends ProjectileDataBlock {
+export type RepairProjectileDataBlock = ProjectileDataBlock & {
   beamRange?: number;
   beamWidth?: number;
   /** Engine S32 (the old decode read its raw bits as a float). */
@@ -546,9 +548,9 @@ export interface RepairProjectileDataBlock extends ProjectileDataBlock {
   cutoffAngle?: number;
   /** textures[0..1] — retail: special/redbump2, special/redflare. */
   textures?: string[];
-}
+};
 
-export interface TargetProjectileDataBlock extends ProjectileDataBlock {
+export type TargetProjectileDataBlock = ProjectileDataBlock & {
   maxRifleRange?: number;
   beamColor?: Color4;
   startBeamWidth?: number;
@@ -559,13 +561,13 @@ export interface TargetProjectileDataBlock extends ProjectileDataBlock {
   pulseSpeed?: number;
   pulseLength?: number;
   textures?: string[];
-}
+};
 
 /**
  * Field names binary-verified against Tribes2.exe (build 25034):
  * initPersistFields FUN_0063fcb0 / unpackData FUN_00640160.
  */
-export interface TracerProjectileDataBlock extends LinearProjectileDataBlock {
+export type TracerProjectileDataBlock = LinearProjectileDataBlock & {
   tracerLength?: number;
   tracerWidth?: number;
   tracerMinPixels?: number;
@@ -578,7 +580,7 @@ export interface TracerProjectileDataBlock extends LinearProjectileDataBlock {
   renderCross?: boolean;
   tracerTex0?: string;
   tracerTex1?: string;
-}
+};
 
 /**
  * Field names binary-verified against Tribes2.exe (build 25034):
@@ -586,7 +588,7 @@ export interface TracerProjectileDataBlock extends LinearProjectileDataBlock {
  * bolt: an oriented additive quad (texture0) with an edge-on cross
  * (texture1) and an untextured motion-blur tail (blur* fields).
  */
-export interface EnergyProjectileDataBlock extends GrenadeProjectileDataBlock {
+export type EnergyProjectileDataBlock = GrenadeProjectileDataBlock & {
   /** Cross fades in when the view angle cosine exceeds this (0x168). */
   crossViewAng?: number;
   crossSize?: number;
@@ -598,9 +600,9 @@ export interface EnergyProjectileDataBlock extends GrenadeProjectileDataBlock {
   texture0?: string;
   /** texture[1] — the edge-on cross (e.g. "special/blasterBoltCross"). */
   texture1?: string;
-}
+};
 
-export interface LinearFlareProjectileDataBlock extends LinearProjectileDataBlock {
+export type LinearFlareProjectileDataBlock = LinearProjectileDataBlock & {
   numFlares?: number;
   flareColor?: Color4;
   flareTexture?: string;
@@ -608,9 +610,9 @@ export interface LinearFlareProjectileDataBlock extends LinearProjectileDataBloc
   size?: number;
   flareModTexture?: number;
   smokeSize?: number;
-}
+};
 
-export interface BombProjectileDataBlock extends GrenadeProjectileDataBlock {
+export type BombProjectileDataBlock = GrenadeProjectileDataBlock & {
   smokeDist?: number;
   noSmoke?: number;
   boomTime?: number;
@@ -619,20 +621,20 @@ export interface BombProjectileDataBlock extends GrenadeProjectileDataBlock {
   noSmokeCounter?: number;
   smokeTexture?: string;
   bombTexture?: string;
-}
+};
 
-export interface FlareProjectileDataBlock extends GrenadeProjectileDataBlock {
+export type FlareProjectileDataBlock = GrenadeProjectileDataBlock & {
   size?: number;
   useLensFlare?: boolean;
   flareTexture?: string;
   lensFlareTexture?: string;
-}
+};
 
 // ---------------------------------------------------------------------------
 // Effects: explosions, debris, splash, shockwave
 // ---------------------------------------------------------------------------
 
-export interface ExplosionDataBlock extends GameBaseDataBlock {
+export type ExplosionDataBlock = GameBaseDataBlock & {
   dtsFileName?: string;
   soundProfile?: number | null;
   particleEmitter?: number | null;
@@ -667,9 +669,9 @@ export interface ExplosionDataBlock extends GameBaseDataBlock {
   subExplosions?: (number | null)[];
   times?: number[];
   sizes?: Vec3[];
-}
+};
 
-export interface DebrisDataBlock extends GameBaseDataBlock {
+export type DebrisDataBlock = GameBaseDataBlock & {
   elasticity?: number;
   friction?: number;
   numBounces?: number;
@@ -682,8 +684,6 @@ export interface DebrisDataBlock extends GameBaseDataBlock {
   snapOnMaxBounce?: boolean;
   lifetime?: number;
   lifetimeVariance?: number;
-  minSpinSpeed_dup?: number;
-  maxSpinSpeed_dup?: number;
   velocity?: number;
   velocityVariance?: number;
   useRadiusMass?: boolean;
@@ -697,9 +697,9 @@ export interface DebrisDataBlock extends GameBaseDataBlock {
   emitter0?: number | null;
   emitter1?: number | null;
   explosion?: number | null;
-}
+};
 
-export interface SplashDataBlock extends GameBaseDataBlock {
+export type SplashDataBlock = GameBaseDataBlock & {
   scale?: Vec3;
   delayMS?: number;
   delayVariance?: number;
@@ -722,9 +722,9 @@ export interface SplashDataBlock extends GameBaseDataBlock {
   times?: number[];
   textureName?: string;
   foamTexture?: string;
-}
+};
 
-export interface ShockwaveDataBlock extends GameBaseDataBlock {
+export type ShockwaveDataBlock = GameBaseDataBlock & {
   scale?: Vec3;
   delayMS?: number;
   delayVariance?: number;
@@ -748,13 +748,13 @@ export interface ShockwaveDataBlock extends GameBaseDataBlock {
   times?: number[];
   textureName?: string;
   mapToTexture?: string;
-}
+};
 
 // ---------------------------------------------------------------------------
 // Particles
 // ---------------------------------------------------------------------------
 
-export interface ParticleEmitterDataBlock extends GameBaseDataBlock {
+export type ParticleEmitterDataBlock = GameBaseDataBlock & {
   ejectionPeriodMS?: number;
   periodVarianceMS?: number;
   ejectionVelocity?: number;
@@ -772,9 +772,9 @@ export interface ParticleEmitterDataBlock extends GameBaseDataBlock {
   useEmitterSizes?: boolean;
   useEmitterColors?: boolean;
   particles?: (number | null)[];
-}
+};
 
-export interface ParticleDataBlock extends GameBaseDataBlock {
+export type ParticleDataBlock = GameBaseDataBlock & {
   dragCoefficient?: number;
   windCoefficient?: number;
   gravityCoefficient?: number;
@@ -788,13 +788,13 @@ export interface ParticleDataBlock extends GameBaseDataBlock {
   useInvAlpha?: boolean;
   keys?: ParticleKey[];
   textures?: string[];
-}
+};
 
 // ---------------------------------------------------------------------------
 // Audio
 // ---------------------------------------------------------------------------
 
-export interface AudioDescriptionDataBlock extends SimDataBlock {
+export type AudioDescriptionDataBlock = SimDataBlock & {
   volume?: number;
   isLooping?: boolean;
   loopCount?: number;
@@ -809,16 +809,16 @@ export interface AudioDescriptionDataBlock extends SimDataBlock {
   coneVector?: Vec3;
   environmentLevel?: number;
   type?: number;
-}
+};
 
-export interface AudioProfileDataBlock extends SimDataBlock {
+export type AudioProfileDataBlock = SimDataBlock & {
   description?: number | null;
   environment?: number | null;
   sampleEnvironment?: number | null;
   filename?: string;
-}
+};
 
-export interface AudioEnvironmentDataBlock extends SimDataBlock {
+export type AudioEnvironmentDataBlock = SimDataBlock & {
   useRoom?: boolean;
   room?: number;
   roomHF?: number;
@@ -836,9 +836,9 @@ export interface AudioEnvironmentDataBlock extends SimDataBlock {
   airAbsorption?: number;
   effectVolume?: number;
   flags?: number;
-}
+};
 
-export interface AudioSampleEnvironmentDataBlock extends SimDataBlock {
+export type AudioSampleEnvironmentDataBlock = SimDataBlock & {
   direct?: number;
   directHF?: number;
   room?: number;
@@ -852,27 +852,27 @@ export interface AudioSampleEnvironmentDataBlock extends SimDataBlock {
   airAbsorption?: number;
   outsideVolumeHF?: number;
   flags?: number;
-}
+};
 
 // ---------------------------------------------------------------------------
 // Misc / utility datablocks
 // ---------------------------------------------------------------------------
 
-export interface DecalDataBlock extends SimDataBlock {
+export type DecalDataBlock = SimDataBlock & {
   sizeX?: number;
   sizeY?: number;
   textureName?: string;
-}
+};
 
 export interface CameraDataBlock extends ShapeBaseDataBlock {}
 
 export interface SensorDataBlock extends SimDataBlock {}
 
-export interface TriggerDataBlock extends SimDataBlock {
+export type TriggerDataBlock = SimDataBlock & {
   tickPeriodMS?: number;
-}
+};
 
-export interface ForceFieldBareDataBlock extends SimDataBlock {
+export type ForceFieldBareDataBlock = SimDataBlock & {
   fadeMS?: number;
   baseTranslucency?: number;
   powerOffTranslucency?: number;
@@ -890,21 +890,21 @@ export interface ForceFieldBareDataBlock extends SimDataBlock {
   texture2?: string;
   texture3?: string;
   texture4?: string;
-}
+};
 
-export interface ParticleEmissionDummyDataBlock extends SimDataBlock {
+export type ParticleEmissionDummyDataBlock = SimDataBlock & {
   timeMultiple?: number;
-}
+};
 
-export interface CommanderIconDataBlock extends SimDataBlock {
+export type CommanderIconDataBlock = SimDataBlock & {
   baseImage?: string;
   activeImage?: string;
   inactiveImage?: string;
   selectImage?: string;
   hilightImage?: string;
-}
+};
 
-export interface PrecipitationDataBlock extends SimDataBlock {
+export type PrecipitationDataBlock = SimDataBlock & {
   soundProfile?: number | null;
   numDrops?: number;
   maxSize?: number;
@@ -922,23 +922,23 @@ export interface PrecipitationDataBlock extends SimDataBlock {
   bottomSpeedPer?: number;
   frontSpeedPer?: number;
   frontRadiusPer?: number;
-}
+};
 
-export interface FireballAtmosphereDataBlock extends SimDataBlock {
+export type FireballAtmosphereDataBlock = SimDataBlock & {
   emitter?: number | null;
-}
+};
 
-export interface LightningDataBlock extends SimDataBlock {
+export type LightningDataBlock = SimDataBlock & {
   strikeSounds?: (number | null)[];
   strikeTextures?: string[];
   thunderSound?: number | null;
-}
+};
 
 // ---------------------------------------------------------------------------
 // Station effects
 // ---------------------------------------------------------------------------
 
-export interface StationFXVehicleDataBlock extends SimDataBlock {
+export type StationFXVehicleDataBlock = SimDataBlock & {
   glowTopHeight?: number;
   glowBottomHeight?: number;
   glowTopRadius?: number;
@@ -966,9 +966,9 @@ export interface StationFXVehicleDataBlock extends SimDataBlock {
   rightNodeName3?: string;
   texture0?: string;
   texture1?: string;
-}
+};
 
-export interface StationFXPersonalDataBlock extends SimDataBlock {
+export type StationFXPersonalDataBlock = SimDataBlock & {
   glowTopRadius?: number;
   glowBottomRadius?: number;
   glowTopHeight?: number;
@@ -983,36 +983,36 @@ export interface StationFXPersonalDataBlock extends SimDataBlock {
   rightNodeName?: string;
   texture0?: string;
   texture1?: string;
-}
+};
 
 // ---------------------------------------------------------------------------
 // Miscellaneous game datablocks
 // ---------------------------------------------------------------------------
 
-export interface CannedChatItemDataBlock extends SimDataBlock {
+export type CannedChatItemDataBlock = SimDataBlock & {
   chatText?: string;
-}
+};
 
 export interface MissionMarkerDataBlock extends ShapeBaseDataBlock {}
 
-export interface TSShapeConstructorDataBlock extends SimDataBlock {
+export type TSShapeConstructorDataBlock = SimDataBlock & {
   shape?: string;
   sequences?: string[];
-}
+};
 
-export interface EffectProfileDataBlock extends SimDataBlock {
+export type EffectProfileDataBlock = SimDataBlock & {
   minDistance?: number;
   maxDistance?: number;
   audioScale?: number;
   directional?: boolean;
   effectName?: string;
-}
+};
 
 // ---------------------------------------------------------------------------
 // Jet / running light effects
 // ---------------------------------------------------------------------------
 
-export interface JetEffectDataBlock extends GameBaseDataBlock {
+export type JetEffectDataBlock = GameBaseDataBlock & {
   coolColor?: Color4;
   hotColor?: Color4;
   activateTime?: number;
@@ -1023,9 +1023,9 @@ export interface JetEffectDataBlock extends GameBaseDataBlock {
   stretch?: number;
   yOffset?: number;
   texture?: string;
-}
+};
 
-export interface RunningLightDataBlock extends GameBaseDataBlock {
+export type RunningLightDataBlock = GameBaseDataBlock & {
   radius?: number;
   color?: Color4;
   type?: number;
@@ -1034,4 +1034,4 @@ export interface RunningLightDataBlock extends GameBaseDataBlock {
   direction?: Vec3;
   offset?: Vec3;
   texture?: string;
-}
+};

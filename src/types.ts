@@ -1,5 +1,12 @@
 import type { ParsedData } from "./ClassRegistry.js";
 
+/** Ident string at the start of every .rec file (checked on playback). */
+export const DemoIdentString = "Tribes2 Recording";
+/** Protocol version written by build 25034; playback rejects any other. */
+export const DemoProtocolVersion = 0x330004;
+/** One Move block per simulation tick, 32ms each (DemoParser.bufferedMoveTicks). */
+export const MoveTickMs = 32;
+
 // Key constants from the V12 engine source
 export const MaxGhostCount = 1024;
 export const GhostIdBitSize = 10;
@@ -232,9 +239,17 @@ export interface Move {
   trigger: boolean[];
 }
 
+/**
+ * Type 3 block, written by GameConnection::readPacket right after each
+ * received packet (FUN_005fb9b0): the `$firstPerson` flag and the control
+ * camera FOV, replayed through setControlCameraFov on playback.
+ */
 export interface InfoBlock {
-  value1: number; // U32
-  value2: number; // F32
+  /** Byte 0 of the block. The engine writes a bool through a 4-byte slot;
+   *  the other three bytes are uninitialized stack in real recordings. */
+  firstPerson: boolean;
+  /** Control camera field of view in degrees (F32). */
+  cameraFov: number;
 }
 
 export interface DataBlockHeader {
@@ -269,6 +284,24 @@ export interface GhostUpdate {
   updateBitsStart: number;
   updateBitsEnd: number;
   parsedData?: ParsedData;
+  /** Set when the ghost's data could not be parsed (unknown class,
+   *  parser threw, or tracker divergence). The ghost section stops
+   *  here and the tracker no longer mirrors the server. */
+  failed?: boolean;
+  /** Why parsing failed (parser name and error text). */
+  error?: string;
+}
+
+/**
+ * A packet the parser could not fully consume. The engine drops the
+ * connection on any of these ("Invalid packet"), and by default the
+ * PacketParser halts too (see `haltOnFault`): later packets come back
+ * empty with the same fault attached. Continuing would mean parsing
+ * against ghost/event state that no longer mirrors the server.
+ */
+export interface ParseFault {
+  stage: "gameState" | "event" | "ghost";
+  message: string;
 }
 
 export interface NetEventInfo {
@@ -282,6 +315,8 @@ export interface NetEventInfo {
   /** Set when the event could not be parsed (unknown class or parser
    *  threw), leaving the stream position unreliable. */
   failed?: boolean;
+  /** Why parsing failed (parser name and error text). */
+  error?: string;
 }
 
 export interface PacketData {
@@ -292,6 +327,8 @@ export interface PacketData {
   ghosts: GhostUpdate[];
   /** Bit position where ghost section starts (readGhosts call). */
   ghostSectionStart?: number;
+  /** Present when any section of the packet failed to parse. */
+  parseFault?: ParseFault;
 }
 
 export interface GameState {
@@ -311,6 +348,8 @@ export interface GameState {
   controlObjectDataStart?: number;
   controlObjectDataEnd?: number;
   controlObjectData?: ParsedData;
+  /** Why the control object's readPacketData could not be applied. */
+  controlObjectError?: string;
   compressionPoint?: { x: number; y: number; z: number };
   targetVisibility?: { index: number; mask: number }[];
   cameraFov?: number;
@@ -322,6 +361,9 @@ export interface DemoBlock {
   size: number;
   data: Uint8Array;
   parsed?: PacketData | Move | InfoBlock;
+  /** Set if decoding the block threw (a parser bug — packets report
+   *  wire problems through `PacketData.parseFault` instead). */
+  parseError?: string;
 }
 
 export interface ConnectionProtocolState {
@@ -430,6 +472,15 @@ export interface InitialBlockData {
   phase2TrailingBits?: number;
   phase2Valid?: boolean;
   phase2Error?: string;
+  /**
+   * Seeded state the engine would choke on during playback even though
+   * the block decodes. Empty for every recording made by Tribes2.exe;
+   * populated for hand-built (from-connect) initial blocks that break an
+   * engine invariant — e.g. a notify count that does not equal
+   * `lastSendSeq - highestAckedSeq` (NetConnection::handleNotify
+   * dereferences an empty notify queue).
+   */
+  warnings: string[];
 }
 
 export interface DemoHeader {

@@ -9,25 +9,30 @@ import {
   NetObjectClassBitSize,
   NetObjectClassFirst,
 } from "./types.js";
-
-const debugGhosts = createDebug("t2-demo-parser:ghosts");
 import type {
   ConnectionProtocolState,
   DnetHeader,
   RateInfo,
   GameState,
   PacketData,
+  ParseFault,
   NetEventInfo,
   GhostUpdate,
 } from "./types.js";
 import type {
   ClassRegistry,
   ConnectionContext,
-  GhostParserEntry,
   ParsedData,
 } from "./ClassRegistry.js";
 import type { EventData, SimDataBlockEventData } from "./eventDataTypes.js";
 import type { GhostTracker } from "./GhostManager.js";
+
+const debugGhosts = createDebug("t2-demo-parser:ghosts");
+const debugEvents = createDebug("t2-demo-parser:events");
+
+function errorMessage(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}
 
 /**
  * Parses individual network packets from demo recording blocks.
@@ -56,6 +61,8 @@ export class PacketParser {
     absoluteSequenceNumber: number;
     event: NetEventInfo;
   }> = [];
+  private readonly haltOnFault: boolean;
+  private _fault?: ParseFault;
 
   // Stats
   controlObjectParsed = 0;
@@ -74,6 +81,8 @@ export class PacketParser {
   packetsParsed = 0;
   protocolRejected = 0;
   protocolNoDispatch = 0;
+  /** Packets received after the parser faulted and halted. */
+  packetsDroppedAfterFault = 0;
 
   constructor(
     registry: ClassRegistry,
@@ -87,11 +96,19 @@ export class PacketParser {
         absoluteSequenceNumber: number;
         event: NetEventInfo;
       }>;
+      /**
+       * Stop parsing after the first packet that faults (default true).
+       * The engine drops the connection on an unreadable packet, and every
+       * later packet would be parsed against ghost/event state that no
+       * longer mirrors the server. Set false to keep going regardless.
+       */
+      haltOnFault?: boolean;
     },
   ) {
     this.registry = registry;
     this.ghostTracker = ghostTracker;
     this.dataBlockDataMap = options?.dataBlockDataMap;
+    this.haltOnFault = options?.haltOnFault ?? true;
     if (options?.connectionProtocolState) {
       this.setConnectionProtocolState(options.connectionProtocolState);
     }
@@ -109,11 +126,26 @@ export class PacketParser {
   }
 
   getCompressionPoint(): { x: number; y: number; z: number } {
-    return this.compressionPoint;
+    return { ...this.compressionPoint };
   }
 
-  getDataBlockDataMap(): Map<number, ParsedData> | undefined {
+  /** Live datablock map (grows as SimDataBlockEvents arrive). */
+  getDataBlockDataMap(): ReadonlyMap<number, ParsedData> | undefined {
     return this.dataBlockDataMap;
+  }
+
+  /**
+   * The first parse fault, if any. Once set (and `haltOnFault` is on),
+   * later packets are returned empty with this fault attached; build a
+   * fresh parser (DemoParser.reset(), or a new createLiveParser seeded
+   * from a known-good state) to continue.
+   */
+  get fault(): ParseFault | undefined {
+    return this._fault;
+  }
+
+  get faulted(): boolean {
+    return this._fault !== undefined;
   }
 
   private getConnectionContext(): ConnectionContext {
@@ -238,6 +270,9 @@ export class PacketParser {
         (dnetHeader.ackMask & (1 << ((highestAck - ackSeq) & 0x1f))) !== 0;
       if (isAcked) {
         this.lastRecvAckAck = this.lastSeqRecvdAtSend[ackSeq & 0x1f] >>> 0;
+        // ConnectionProtocol::readPacketHeader (FUN_0043d4d0): the first
+        // acknowledged packet marks the connection established.
+        this._connectionEstablished = true;
       }
     }
     if (seqNumber - this.lastRecvAckAck > 0x20) {
@@ -257,6 +292,22 @@ export class PacketParser {
 
     // 1. Parse dnet header
     const dnetHeader = this.readDnetHeader(bs);
+
+    if (this._fault && this.haltOnFault) {
+      // Halted: mirror the engine, which has disconnected by now. The
+      // header is still decoded for the caller's benefit, but no state
+      // is touched.
+      this.packetsDroppedAfterFault++;
+      return {
+        dnetHeader,
+        rateInfo: {},
+        gameState: this.emptyGameState(),
+        events: [],
+        ghosts: [],
+        parseFault: this._fault,
+      };
+    }
+
     const protocol = this.applyProtocolHeader(dnetHeader);
 
     this.packetsParsed++;
@@ -314,8 +365,38 @@ export class PacketParser {
       gameStateComplete && eventsComplete
         ? this.readGhosts(bs, dnetHeader.seqNumber)
         : [];
+    const lastGhost = ghosts[ghosts.length - 1];
 
     bs.setStringBuffer(false);
+
+    let parseFault: ParseFault | undefined;
+    if (!gameStateComplete) {
+      parseFault = {
+        stage: "gameState",
+        message: `control object ghost ${gameState.controlObjectGhostIndex} could not be read${
+          gameState.controlObjectError ? `: ${gameState.controlObjectError}` : ""
+        }`,
+      };
+    } else if (!eventsComplete) {
+      parseFault = {
+        stage: "event",
+        message: `event class ${lastEvent.classId} (${
+          this.registry.getEventParser(lastEvent.classId)?.name ?? "unbound"
+        }) failed to parse: ${lastEvent.error ?? "unknown error"}`,
+      };
+    } else if (lastGhost?.failed) {
+      parseFault = {
+        stage: "ghost",
+        message: `ghost ${lastGhost.index} (class ${lastGhost.classId}, ${
+          lastGhost.classId !== undefined
+            ? (this.registry.getGhostParser(lastGhost.classId)?.name ?? "unbound")
+            : "unknown"
+        }) ${lastGhost.type} failed to parse: ${lastGhost.error ?? "unknown error"}`,
+      };
+    }
+    if (parseFault && !this._fault) {
+      this._fault = parseFault;
+    }
 
     return {
       dnetHeader,
@@ -324,6 +405,7 @@ export class PacketParser {
       events,
       ghosts,
       ghostSectionStart,
+      ...(parseFault ? { parseFault } : {}),
     };
   }
 
@@ -437,52 +519,34 @@ export class PacketParser {
     if (bs.readFlag()) {
       if (bs.readFlag()) {
         // Control object is dirty — full update via readPacketData.
-        // In Tribes 2 (build 25034), only Player and Camera override
-        // writePacketData/readPacketData, so the control object is
-        // always one of these two classes. We try candidates in order:
-        //   1. Tracker classId (may be stale due to ghost index recycling)
-        //   2. Player (classId 25) — the normal control object
-        //   3. Camera (classId 4) — spectator mode
-        // The candidate order must be a pure function of seeded state
-        // (the tracker) so that a parser seeded mid-stream makes the same
-        // choice as one that has followed the stream from the start —
-        // no history-derived caches here.
+        // GameConnection::readPacket (FUN_005fb9f0) resolves the ghost
+        // index against the local ghost table and calls the object's
+        // virtual readPacketData (vtable+0x108) with no fallback. An
+        // untracked index is a null dereference in the engine, and a
+        // non-GameBase object has no readPacketData slot, so both are
+        // unrecoverable faults here — never a guess.
         const gIndex = bs.readInt(10);
         controlObjectGhostIndex = gIndex;
         controlObjectDataStart = bs.getCurPos();
-        const start = bs.savePos();
         const ghost = this.ghostTracker.getGhost(gIndex);
-
-        const preferredEntry = ghost
+        const entry = ghost
           ? this.registry.getGhostParser(ghost.classId)
           : undefined;
-        const playerEntry = this.registry.getGhostParser(25); // Player
-        const cameraEntry = this.registry.getGhostParser(4); // Camera
 
-        // Build candidate list (deduplicated, only those with readPacketData)
-        const candidates: GhostParserEntry[] = [];
-        const seen = new Set<string>();
-        const addCandidate = (entry: GhostParserEntry | undefined): void => {
-          if (!entry?.readPacketData) return;
-          if (seen.has(entry.name)) return;
-          seen.add(entry.name);
-          candidates.push(entry);
-        };
-        addCandidate(preferredEntry);
-        addCandidate(playerEntry);
-        addCandidate(cameraEntry);
-
-        let parsed = false;
-        for (const entry of candidates) {
-          bs.restorePos(start);
+        let controlObjectError: string | undefined;
+        if (!ghost) {
+          controlObjectError = `control object ghost ${gIndex} is not tracked`;
+        } else if (!entry) {
+          controlObjectError = `no ghost class bound to classId ${ghost.classId}`;
+        } else if (!entry.readPacketData) {
+          controlObjectError = `${entry.name} is not a GameBase and has no readPacketData`;
+        } else {
           try {
             const conn = this.getConnectionContext();
-            const data = entry.readPacketData!(bs, conn);
-            const bitsConsumed = bs.getCurPos() - controlObjectDataStart!;
-            if (bitsConsumed <= 0 || bs.isError()) {
-              continue;
+            const data = entry.readPacketData(bs, conn);
+            if (bs.isError()) {
+              throw new Error("ran past the end of the packet");
             }
-
             controlObjectData = data;
             controlObjectDataEnd = bs.getCurPos();
             if (conn.compressionPoint !== this.compressionPoint) {
@@ -490,16 +554,12 @@ export class PacketParser {
               compressionPoint = this.compressionPoint;
             }
             this.controlObjectParsed++;
-            parsed = true;
-            break;
-          } catch {
-            // Try next candidate.
+          } catch (e) {
+            controlObjectError = `${entry.name}.readPacketData: ${errorMessage(e)}`;
           }
         }
 
-        if (!parsed) {
-          bs.restorePos(start);
-          // No parser — bail from game state
+        if (controlObjectError !== undefined) {
           controlObjectDataEnd = controlObjectDataStart;
           this.controlObjectFailed++;
           return {
@@ -519,6 +579,7 @@ export class PacketParser {
             controlObjectDataStart,
             controlObjectDataEnd,
             controlObjectData,
+            controlObjectError,
             targetVisibility: [],
           };
         }
@@ -598,8 +659,6 @@ export class PacketParser {
       } else if (!unguaranteedPhase && !bit) {
         this.dispatchGuaranteedEvents(dispatchedEvents);
         break;
-      } else if (!bit) {
-        break;
       }
 
       let sequenceNumber: number | undefined;
@@ -628,9 +687,22 @@ export class PacketParser {
         try {
           const conn = this.getConnectionContext();
           parsedData = parserEntry.unpack(bs, conn);
+          if (bs.isError()) {
+            throw new Error("ran past the end of the packet");
+          }
           this.eventsParsed++;
-        } catch {
+        } catch (e) {
           this.eventsFailed++;
+          const error = `${parserEntry.name}: ${errorMessage(e)}`;
+          debugEvents(
+            "FAIL pkt=%d classId=%d parser=%s bit=%d/%d err=%s",
+            this.packetsParsed,
+            classId,
+            parserEntry.name,
+            dataBitsStart,
+            bs.getMaxPos(),
+            error,
+          );
           dispatchedEvents.push({
             classId,
             guaranteed: !unguaranteedPhase,
@@ -639,6 +711,7 @@ export class PacketParser {
             dataBitsStart,
             dataBitsEnd: dataBitsStart,
             failed: true,
+            error,
           });
           return dispatchedEvents;
         }
@@ -652,6 +725,7 @@ export class PacketParser {
           dataBitsStart,
           dataBitsEnd: dataBitsStart,
           failed: true,
+          error: `no parser bound for event classId ${classId}`,
         });
         return dispatchedEvents;
       }
@@ -839,17 +913,22 @@ export class PacketParser {
           classId,
           updateBitsStart,
           updateBitsEnd: updateBitsStart,
+          failed: true,
+          error: `no ghost parser bound for classId ${classId} (tracker divergence)`,
         });
         return ghosts;
       }
 
       let parsed = false;
+      let error: string | undefined;
 
       if (parserEntry) {
         try {
           const conn = this.getConnectionContext();
-          conn.currentGhostIndex = index;
           const parsedData = parserEntry.unpackUpdate(bs, isNew, conn);
+          if (bs.isError()) {
+            throw new Error("ran past the end of the packet");
+          }
           const endPos = bs.getCurPos();
 
           if (isNew && classId !== undefined) {
@@ -871,7 +950,8 @@ export class PacketParser {
         } catch (e) {
           this.ghostsFailed++;
           const op = isNew ? "create" : "update";
-          const message = e instanceof Error ? e.message : String(e);
+          const message = errorMessage(e);
+          error = `${parserEntry.name}: ${message}`;
           debugGhosts(
             "FAIL pkt=%d seq=%d #%d idx=%d op=%s classId=%d parser=%s bit=%d/%d trackerSize=%d err=%s",
             this.packetsParsed,
@@ -910,6 +990,12 @@ export class PacketParser {
         classId,
         updateBitsStart,
         updateBitsEnd: updateBitsStart,
+        failed: true,
+        error:
+          error ??
+          (parserEntry
+            ? `${parserEntry.name}: unknown error`
+            : `no ghost parser bound for classId ${classId}`),
       });
       return ghosts;
     }

@@ -90,6 +90,37 @@ describe("BitStream", () => {
     });
   });
 
+  describe("read guards", () => {
+    it("rejects bit counts above 32", () => {
+      const s = bs([0, 0, 0, 0, 0, 0, 0, 0]);
+      expect(() => s.readInt(33)).toThrow(RangeError);
+      expect(() => s.readInt(-1)).toThrow(RangeError);
+    });
+
+    it("readBitsBuffer/readBytes set error and hold position when short", () => {
+      const s = bs([0xab, 0xcd]);
+      const pos = s.getCurPos();
+      expect(s.readBytes(3)).toEqual([0, 0, 0]);
+      expect(s.isError()).toBe(true);
+      expect(s.getCurPos()).toBe(pos);
+    });
+
+    it("skipBits sets error instead of running off the end", () => {
+      const s = bs([0xff]);
+      s.skipBits(4);
+      expect(s.getCurPos()).toBe(4);
+      s.skipBits(5);
+      expect(s.isError()).toBe(true);
+      expect(s.getCurPos()).toBe(4);
+    });
+
+    it("readFloat handles 31 and 32 bit widths", () => {
+      const s = bs([0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff]);
+      expect(s.readFloat(32)).toBeCloseTo(1, 6);
+      expect(s.readSignedFloat(31)).toBeCloseTo(1, 6);
+    });
+  });
+
   describe("readSignedInt", () => {
     it("reads positive value (sign bit = 0)", () => {
       // Bit 0 = 0 (positive), bits 1-7 = 42 (0b0101010)
@@ -189,6 +220,17 @@ describe("BitStream", () => {
       // Value 12 → offset 2 → bits: 10 (LSB) → byte 0x02
       const s = bs([0x02]);
       expect(s.readRangedU32(10, 13)).toBe(12);
+    });
+
+    it("sizes the read like the engine's getNextPow2/getBinLog2", () => {
+      // Range sizes 1, 2, 3 → 0, 1, 2 bits: the single-value range
+      // consumes nothing, so the next reads start at bit 0.
+      const s = bs([0b00000_10_1]);
+      expect(s.readRangedU32(7, 7)).toBe(7);
+      expect(s.getCurPos()).toBe(0);
+      expect(s.readRangedU32(0, 1)).toBe(1);
+      expect(s.readRangedU32(0, 2)).toBe(2);
+      expect(s.getCurPos()).toBe(3);
     });
   });
 

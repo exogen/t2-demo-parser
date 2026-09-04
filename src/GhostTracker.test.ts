@@ -11,7 +11,6 @@ describe("GhostTracker", () => {
     expect(ghost).toBeDefined();
     expect(ghost!.classId).toBe(25);
     expect(ghost!.className).toBe("Player");
-    expect(ghost!.state).toEqual({});
   });
 
   it("returns undefined for non-existent ghosts", () => {

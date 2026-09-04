@@ -1,17 +1,7 @@
-import { ClassRegistry } from "./ClassRegistry.js";
+import type { ClassRegistry } from "./ClassRegistry.js";
+import { createDefaultRegistry } from "./defaultRegistry.js";
 import { GhostTracker } from "./GhostManager.js";
 import { PacketParser } from "./PacketParser.js";
-import { registerEventParsers } from "./EventParsers.js";
-import { registerGhostParsers } from "./GhostManager.js";
-import { registerDataBlockParsers } from "./DataBlockParsers.js";
-import {
-  DataBlockClassFirst,
-  DataBlockClassNames,
-  NetObjectClassFirst,
-  NetObjectClassNames,
-  NetEventClassFirst,
-  NetEventClassNames,
-} from "./types.js";
 import type { ConnectionProtocolState, NetEventInfo } from "./types.js";
 import type { ParsedData } from "./ClassRegistry.js";
 
@@ -33,6 +23,8 @@ export interface LiveParserSeed {
     absoluteSequenceNumber: number;
     event: NetEventInfo;
   }>;
+  /** Passed to PacketParser; see its `haltOnFault` option (default true). */
+  haltOnFault?: boolean;
 }
 
 /**
@@ -45,6 +37,14 @@ export interface LiveParserSeed {
  * connection: `lastSeqRecvd` starts at 0, so the 9-bit sequence window
  * check rejects packets attached mid-stream (seed
  * `connectionProtocolState` from the exporter in that case).
+ *
+ * This is parser-only state. Never write it into a .rec initial block:
+ * Tribes2.exe requires `notifyCount === lastSendSeq - highestAckedSeq`
+ * and treats `lastSendSeq - highestAckedSeq > 0x1d` as a full send window
+ * (no notify is queued for a SendPacket marker), so a demo seeded with
+ * this value crashes on the first acknowledged packet. Use
+ * `freshConnectionProtocolState` for a recording that starts at connect
+ * time.
  */
 export function passiveObserverProtocolState(
   firstPacketByte: number,
@@ -62,6 +62,29 @@ export function passiveObserverProtocolState(
 }
 
 /**
+ * The ConnectionProtocol state of a connection that has not yet exchanged
+ * a sequenced packet — what a demo whose stream starts at connect time
+ * must seed (with a notify count of 0, since nothing is in flight). The
+ * recorder must then write one SendPacket marker per packet it actually
+ * sends, before the received packet that acks it; Tribes2.exe replays
+ * those markers through checkPacketSend to rebuild the notify queue.
+ */
+export function freshConnectionProtocolState(
+  connectSequence: number,
+): ConnectionProtocolState {
+  return {
+    lastSeqRecvdAtSend: new Array(32).fill(0),
+    lastSeqRecvd: 0,
+    highestAckedSeq: 0,
+    lastSendSeq: 0,
+    ackMask: 0,
+    connectSequence: connectSequence >>> 0,
+    lastRecvAckAck: 0,
+    connectionEstablished: true,
+  };
+}
+
+/**
  * Create a parser stack for live server connections. Sets up the same
  * registry bindings as DemoParser but without requiring a demo file,
  * and includes a dataBlockDataMap for incremental datablock accumulation
@@ -72,19 +95,8 @@ export function passiveObserverProtocolState(
  * continue parsing at a packet boundary in lockstep with the exporter.
  */
 export function createLiveParser(seed?: LiveParserSeed): LiveParserKit {
-  const registry = new ClassRegistry();
+  const registry = createDefaultRegistry();
   const ghostTracker = new GhostTracker();
-
-  registerEventParsers(registry);
-  registerGhostParsers(registry);
-  registerDataBlockParsers(registry);
-
-  registry.bindDeterministicDataBlocks(
-    DataBlockClassNames,
-    DataBlockClassFirst,
-  );
-  registry.bindDeterministicGhosts(NetObjectClassNames, NetObjectClassFirst);
-  registry.bindDeterministicEvents(NetEventClassNames, NetEventClassFirst);
 
   const dataBlockDataMap = new Map<number, ParsedData>();
   if (seed?.dataBlocks) {
@@ -110,6 +122,7 @@ export function createLiveParser(seed?: LiveParserSeed): LiveParserKit {
     nextRecvEventSeq: seed?.nextRecvEventSeq,
     compressionPoint: seed?.compressionPoint,
     pendingGuaranteedEvents: seed?.pendingGuaranteedEvents,
+    haltOnFault: seed?.haltOnFault,
   });
 
   return { registry, ghostTracker, packetParser };

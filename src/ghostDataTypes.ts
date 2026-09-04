@@ -11,7 +11,7 @@ import type {
 // Sub-structures
 // ---------------------------------------------------------------------------
 
-export interface MoveData {
+export type MoveData = {
   pyaw: number;
   ppitch: number;
   proll: number;
@@ -20,23 +20,23 @@ export interface MoveData {
   pz: number;
   freeLook: boolean;
   trigger: boolean[];
-}
+};
 
-export interface SoundSlot {
+export type SoundSlot = {
   index: number;
   playing: boolean;
   profileId?: number;
-}
+};
 
-export interface ThreadState {
+export type ThreadState = {
   index: number;
   sequence: number;
   state: number;
   forward: boolean;
   atEnd: boolean;
-}
+};
 
-export interface ImageSlot {
+export type ImageSlot = {
   index: number;
   dataBlockId?: number;
   skinTagIndex?: number;
@@ -48,25 +48,24 @@ export interface ImageSlot {
   target?: boolean;
   fireCount?: number;
   imageExtraFlag?: boolean;
-}
+};
 
-export interface WheelState {
+export type WheelState = {
   avel: number;
   dy: number;
   dx: number;
-}
+};
 
 // ---------------------------------------------------------------------------
 // GameBase hierarchy
 // ---------------------------------------------------------------------------
 
-export interface GameBaseGhostData {
+export type GameBaseGhostData = {
   dataBlockId?: number;
   targetId?: number;
-  [key: string]: unknown;
-}
+};
 
-export interface ShapeBaseGhostData extends GameBaseGhostData {
+export type ShapeBaseGhostData = GameBaseGhostData & {
   damageLevel?: number;
   damageState?: number;
   blowApart?: boolean;
@@ -89,13 +88,13 @@ export interface ShapeBaseGhostData extends GameBaseGhostData {
   stateValue2?: number;
   mountObject?: number;
   mountNode?: number;
-}
+};
 
 // ---------------------------------------------------------------------------
 // Player
 // ---------------------------------------------------------------------------
 
-export interface PlayerGhostData extends ShapeBaseGhostData {
+export type PlayerGhostData = ShapeBaseGhostData & {
   impactSound?: number;
   action?: number;
   actionHoldAtEnd?: boolean;
@@ -115,9 +114,24 @@ export interface PlayerGhostData extends ShapeBaseGhostData {
   move?: MoveData;
   allowWarp?: boolean;
   energy?: number;
-}
+};
 
-export interface PlayerPacketData {
+/** ShapeBase::readPacketData: energy level + recharge rate. */
+export type ShapeBasePacketData = {
+  energyLevel?: number;
+  rechargeRate?: number;
+};
+
+/** Turret::readPacketData (FUN_00655d70). */
+export type TurretPacketData = ShapeBasePacketData & {
+  /** Ranged 0..4 (3 bits); stored at Turret+0x88c. Meaning unverified. */
+  turretState: number;
+  /** Three F32s copied into the turret's current rotation state
+   *  (+0x890..+0x898 → +0x8dc/+0x8d4/+0x8d8). Meaning unverified. */
+  rotationValues: [number, number, number];
+};
+
+export type PlayerPacketData = {
   energyLevel?: number;
   rechargeRate?: number;
   actionState?: number;
@@ -133,16 +147,14 @@ export interface PlayerPacketData {
   controlObjectData?: Record<string, unknown>;
   disableMove?: boolean;
   pilot?: boolean;
-  [key: string]: unknown;
-}
+};
 
 // ---------------------------------------------------------------------------
 // Vehicles
 // ---------------------------------------------------------------------------
 
-export interface VehicleGhostData extends ShapeBaseGhostData {
+export type VehicleGhostData = ShapeBaseGhostData & {
   jetting?: boolean;
-  _controlledEarlyReturn?: boolean;
   steeringYaw?: number;
   steeringPitch?: number;
   move?: MoveData;
@@ -152,9 +164,9 @@ export interface VehicleGhostData extends ShapeBaseGhostData {
   linMomentum?: Vec3;
   angMomentum?: Vec3;
   energy?: number;
-}
+};
 
-export interface VehiclePacketData {
+export type VehiclePacketData = {
   energyLevel?: number;
   rechargeRate?: number;
   steering?: { x: number; y: number };
@@ -164,33 +176,32 @@ export interface VehiclePacketData {
   angMomentum?: Vec3;
   disableMove?: boolean;
   frozen?: boolean;
-  [key: string]: unknown;
-}
+};
 
-export interface WheeledVehicleGhostData extends VehicleGhostData {
+export type WheeledVehicleGhostData = VehicleGhostData & {
   braking?: boolean;
   wheels?: WheelState[];
-}
+};
 
-export interface WheeledVehiclePacketData extends VehiclePacketData {
+export type WheeledVehiclePacketData = VehiclePacketData & {
   braking?: boolean;
   wheels?: WheelState[];
-}
+};
 
-export interface FlyingVehicleGhostData extends VehicleGhostData {
+export type FlyingVehicleGhostData = VehicleGhostData & {
   createHeightOn?: boolean;
   thrustDirection?: number;
-}
+};
 
-export interface HoverVehicleGhostData extends VehicleGhostData {
+export type HoverVehicleGhostData = VehicleGhostData & {
   thrustDirection?: number;
-}
+};
 
 // ---------------------------------------------------------------------------
 // Items & static shapes
 // ---------------------------------------------------------------------------
 
-export interface ItemGhostData extends ShapeBaseGhostData {
+export type ItemGhostData = ShapeBaseGhostData & {
   rotate?: boolean;
   isStatic?: boolean;
   collideable?: boolean;
@@ -201,64 +212,64 @@ export interface ItemGhostData extends ShapeBaseGhostData {
   atRest?: boolean;
   velocity?: Vec3;
   warp?: boolean;
-}
+};
 
-export interface StaticShapeGhostData extends ShapeBaseGhostData {
+export type StaticShapeGhostData = ShapeBaseGhostData & {
   transform?: AffineTransform | MatrixF;
   position?: Vec3;
   scale?: Vec3;
   powered?: boolean;
-}
+};
 
 export type ScopeAlwaysShapeGhostData = StaticShapeGhostData;
 
-export interface BeaconObjectGhostData extends StaticShapeGhostData {
+export type BeaconObjectGhostData = StaticShapeGhostData & {
   beaconType?: number;
-}
+};
 
-export interface TurretGhostData extends StaticShapeGhostData {
+export type TurretGhostData = StaticShapeGhostData & {
   capacitorEnergy?: number;
   phi?: number;
   theta?: number;
   activationLevel?: number;
-}
+};
 
 // ---------------------------------------------------------------------------
 // Mission markers
 // ---------------------------------------------------------------------------
 
-export interface MissionMarkerGhostData extends ShapeBaseGhostData {
+export type MissionMarkerGhostData = ShapeBaseGhostData & {
   transform?: AffineTransform;
   position?: Vec3;
   scale?: Vec3;
-}
+};
 
-export interface WayPointGhostData extends MissionMarkerGhostData {
+export type WayPointGhostData = MissionMarkerGhostData & {
   name?: string;
   teamId?: number;
   hidden?: boolean;
-}
+};
 
-export interface SpawnSphereGhostData extends MissionMarkerGhostData {
+export type SpawnSphereGhostData = MissionMarkerGhostData & {
   radius?: number;
   sphereWeight?: number;
   indoorWeight?: number;
   outdoorWeight?: number;
-}
+};
 
 // ---------------------------------------------------------------------------
 // Camera
 // ---------------------------------------------------------------------------
 
-export interface CameraGhostData extends ShapeBaseGhostData {
+export type CameraGhostData = ShapeBaseGhostData & {
   posX?: number;
   posY?: number;
   posZ?: number;
   fovOrDist?: number;
   orbitParam?: number;
-}
+};
 
-export interface CameraPacketData {
+export type CameraPacketData = {
   energyLevel?: number;
   rechargeRate?: number;
   position?: Vec3;
@@ -271,24 +282,21 @@ export interface CameraPacketData {
   observingClientObject?: boolean;
   orbitObjectGhostIndex?: number;
   orbitPoint?: Vec3;
-  [key: string]: unknown;
-}
+};
 
 // ---------------------------------------------------------------------------
 // Standalone ghost types (not GameBase subclasses)
 // ---------------------------------------------------------------------------
 
-export interface MarkerGhostData {
+export type MarkerGhostData = {
   position?: Vec3;
-  [key: string]: unknown;
-}
+};
 
-export interface SimpleNetObjectGhostData {
+export type SimpleNetObjectGhostData = {
   message?: string;
-  [key: string]: unknown;
-}
+};
 
-export interface InteriorInstanceGhostData {
+export type InteriorInstanceGhostData = {
   crc?: number;
   interiorFile?: string;
   showTerrainInside?: boolean;
@@ -298,46 +306,40 @@ export interface InteriorInstanceGhostData {
   skinBase?: string;
   audioProfileId?: number;
   audioEnvironmentId?: number;
-  [key: string]: unknown;
-}
+};
 
-export interface TSStaticGhostData {
+export type TSStaticGhostData = {
   transform?: MatrixF;
   scale?: Vec3;
   shapeName?: string;
-  [key: string]: unknown;
-}
+};
 
-export interface TerrainBlockGhostData {
+export type TerrainBlockGhostData = {
   crc?: number;
   terrFileName?: string;
   detailTextureName?: string;
   squareSize?: number;
   emptySquareRuns?: number[];
   emptySquareRunCount?: number;
-  [key: string]: unknown;
-}
+};
 
-export interface TriggerGhostData {
+export type TriggerGhostData = {
   tickPeriodMS?: number;
-  [key: string]: unknown;
-}
+};
 
-export interface VehicleBlockerGhostData {
+export type VehicleBlockerGhostData = {
   transform?: MatrixF;
   boundsMin?: Vec3;
   boundsMax?: Vec3;
-  [key: string]: unknown;
-}
+};
 
-export interface MissionAreaGhostData {
+export type MissionAreaGhostData = {
   area?: { x: number; y: number; w: number; h: number };
   flightCeiling?: number;
   flightCeilingRange?: number;
-  [key: string]: unknown;
-}
+};
 
-export interface AudioEmitterGhostData {
+export type AudioEmitterGhostData = {
   initialUpdate?: boolean;
   transform?: AffineTransform;
   audioProfileId?: number;
@@ -358,10 +360,9 @@ export interface AudioEmitterGhostData {
   maxLoopGap?: number;
   audioType?: number;
   outsideAmbient?: boolean;
-  [key: string]: unknown;
-}
+};
 
-export interface PhysicalZoneGhostData {
+export type PhysicalZoneGhostData = {
   transform?: MatrixF;
   scale?: Vec3;
   points?: Vec3[];
@@ -376,14 +377,13 @@ export interface PhysicalZoneGhostData {
   gravityMod?: number;
   appliedForce?: Vec3;
   active?: boolean;
-  [key: string]: unknown;
-}
+};
 
 // ---------------------------------------------------------------------------
 // Debris
 // ---------------------------------------------------------------------------
 
-export interface DebrisGhostData extends GameBaseGhostData {
+export type DebrisGhostData = GameBaseGhostData & {
   value0?: number;
   value1?: number;
   value2?: number;
@@ -409,8 +409,7 @@ export interface DebrisGhostData extends GameBaseGhostData {
   string0?: string;
   string1?: string;
   objectRefs?: number[];
-  objectRef2?: number;
-}
+};
 
 // ---------------------------------------------------------------------------
 // Projectiles
@@ -418,7 +417,7 @@ export interface DebrisGhostData extends GameBaseGhostData {
 
 export interface ProjectileGhostData extends GameBaseGhostData {}
 
-export interface LinearProjectileGhostData extends GameBaseGhostData {
+export type LinearProjectileGhostData = GameBaseGhostData & {
   hidden?: boolean;
   explodePosition?: Vec3;
   explodeNormal?: Vec3;
@@ -431,9 +430,9 @@ export interface LinearProjectileGhostData extends GameBaseGhostData {
   excessVel?: number;
   excessDir?: Vec3;
   vehicleObject?: number;
-}
+};
 
-export interface BombProjectileGhostData extends GameBaseGhostData {
+export type BombProjectileGhostData = GameBaseGhostData & {
   position?: Vec3;
   velocity?: Vec3;
   endPoint?: Vec3;
@@ -445,9 +444,9 @@ export interface BombProjectileGhostData extends GameBaseGhostData {
   sourceObject?: number;
   sourceSlot?: number;
   vehicleObject?: number;
-}
+};
 
-export interface GrenadeProjectileGhostData extends GameBaseGhostData {
+export type GrenadeProjectileGhostData = GameBaseGhostData & {
   position?: Vec3;
   velocity?: Vec3;
   currTick?: number;
@@ -457,9 +456,9 @@ export interface GrenadeProjectileGhostData extends GameBaseGhostData {
   sourceObject?: number;
   sourceSlot?: number;
   vehicleObject?: number;
-}
+};
 
-export interface SeekerProjectileGhostData extends GameBaseGhostData {
+export type SeekerProjectileGhostData = GameBaseGhostData & {
   explodePosition?: Vec3;
   explodeNormal?: Vec3;
   position?: Vec3;
@@ -471,9 +470,9 @@ export interface SeekerProjectileGhostData extends GameBaseGhostData {
   sourceObject?: number;
   sourceSlot?: number;
   timeoutReset?: boolean;
-}
+};
 
-export interface SniperProjectileGhostData extends GameBaseGhostData {
+export type SniperProjectileGhostData = GameBaseGhostData & {
   energyPercentage?: number;
   initialPosition?: Vec3;
   endPos?: Vec3;
@@ -482,63 +481,62 @@ export interface SniperProjectileGhostData extends GameBaseGhostData {
   sourceObject?: number;
   sourceSlot?: number;
   clientOwned?: boolean;
-}
+};
 
-export interface ShockLanceProjectileGhostData extends GameBaseGhostData {
+export type ShockLanceProjectileGhostData = GameBaseGhostData & {
   targetObject?: number;
   start?: Vec3;
   end?: Vec3;
   hitObject?: boolean;
   sourceObject?: number;
   sourceSlot?: number;
-}
+};
 
-export interface ELFProjectileGhostData extends GameBaseGhostData {
+export type ELFProjectileGhostData = GameBaseGhostData & {
   sourceObject?: number;
   sourceSlot?: number;
   targetObject?: number;
-}
+};
 
-export interface RepairProjectileGhostData extends GameBaseGhostData {
+export type RepairProjectileGhostData = GameBaseGhostData & {
   sourceObject?: number;
   sourceSlot?: number;
   repairingObject?: number;
-}
+};
 
-export interface TargetProjectileGhostData extends GameBaseGhostData {
+export type TargetProjectileGhostData = GameBaseGhostData & {
   initialPosition?: Vec3;
   endPos?: Vec3;
   truncated?: boolean;
   sourceObject?: number;
   sourceSlot?: number;
   clientOwned?: boolean;
-}
+};
 
 // ---------------------------------------------------------------------------
 // Force fields
 // ---------------------------------------------------------------------------
 
-export interface ForceFieldBareGhostData extends GameBaseGhostData {
+export type ForceFieldBareGhostData = GameBaseGhostData & {
   transform?: AffineTransform;
   scale?: Vec3;
   state?: number;
   position?: number;
-}
+};
 
 // ---------------------------------------------------------------------------
 // Environment & effects
 // ---------------------------------------------------------------------------
 
-export interface SunGhostData {
+export type SunGhostData = {
   textures?: string[];
   direction?: Vec3;
   color?: Color4;
   ambient?: Color4;
   extraLightProps?: number[];
-  [key: string]: unknown;
-}
+};
 
-export interface SkyGhostData {
+export type SkyGhostData = {
   materialList?: string;
   fogColor?: Color3;
   fogVolumeCount?: number;
@@ -583,10 +581,9 @@ export interface SkyGhostData {
     value1: number;
     value2: number;
   };
-  [key: string]: unknown;
-}
+};
 
-export interface LightningGhostData extends GameBaseGhostData {
+export type LightningGhostData = GameBaseGhostData & {
   position?: Vec3;
   scale?: Vec3;
   strikeWidth?: number;
@@ -597,9 +594,9 @@ export interface LightningGhostData extends GameBaseGhostData {
   fadeColor?: Color3;
   useFog?: boolean;
   strikesPerMinute?: number;
-}
+};
 
-export interface WaterBlockGhostData {
+export type WaterBlockGhostData = {
   transform?: AffineTransform;
   scale?: Vec3;
   surfaceName?: string;
@@ -613,19 +610,18 @@ export interface WaterBlockGhostData {
   envMapIntensity?: number;
   removeWetEdges?: boolean;
   audioEnvironmentId?: number;
-  [key: string]: unknown;
-}
+};
 
-export interface SplashGhostData extends GameBaseGhostData {
+export type SplashGhostData = GameBaseGhostData & {
   position?: Vec3;
-}
+};
 
-export interface ShockwaveGhostData extends GameBaseGhostData {
+export type ShockwaveGhostData = GameBaseGhostData & {
   position?: Vec3;
   normal?: Vec3;
-}
+};
 
-export interface FireballAtmosphereGhostData extends GameBaseGhostData {
+export type FireballAtmosphereGhostData = GameBaseGhostData & {
   dropRadius?: number;
   dropsPerMinute?: number;
   maxDropAngle?: number;
@@ -633,9 +629,9 @@ export interface FireballAtmosphereGhostData extends GameBaseGhostData {
   startVelocity?: number;
   dropHeight?: number;
   dropDir?: Vec3;
-}
+};
 
-export interface PrecipitationGhostData extends GameBaseGhostData {
+export type PrecipitationGhostData = GameBaseGhostData & {
   percentage?: number;
   colorCount?: number;
   colors?: Color4[];
@@ -649,24 +645,24 @@ export interface PrecipitationGhostData extends GameBaseGhostData {
   stormEndPercentage?: number;
   stormPrecipitationOn?: boolean;
   percentageUpdate?: number;
-}
+};
 
-export interface ParticleEmissionDummyGhostData extends GameBaseGhostData {
+export type ParticleEmissionDummyGhostData = GameBaseGhostData & {
   transform?: MatrixF;
   scale?: Vec3;
   emitterDatablockId?: number;
-}
+};
 
 // ---------------------------------------------------------------------------
 // AI
 // ---------------------------------------------------------------------------
 
-export interface StationFXPersonalGhostData extends GameBaseGhostData {
+export type StationFXPersonalGhostData = GameBaseGhostData & {
   stationObject?: number;
-}
+};
 
-export interface AIObjectiveGhostData extends ShapeBaseGhostData {
+export type AIObjectiveGhostData = ShapeBaseGhostData & {
   transform?: AffineTransform;
   scale?: Vec3;
   unknownFlag?: boolean;
-}
+};

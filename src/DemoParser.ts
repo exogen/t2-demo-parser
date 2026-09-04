@@ -2,16 +2,16 @@ import { inflate, Inflate } from "fflate";
 import createDebug from "debug";
 import { BitStream } from "./BitStream.js";
 import { PacketParser } from "./PacketParser.js";
-import { ClassRegistry } from "./ClassRegistry.js";
-import type { GhostParserEntry } from "./ClassRegistry.js";
-import { GhostTracker, registerGhostParsers } from "./GhostManager.js";
-import { registerEventParsers } from "./EventParsers.js";
-import { registerDataBlockParsers } from "./DataBlockParsers.js";
+import type { ClassRegistry, GhostParserEntry } from "./ClassRegistry.js";
+import { createDefaultRegistry } from "./defaultRegistry.js";
+import { GhostTracker } from "./GhostManager.js";
 import {
   BlockTypePacket,
   BlockTypeSendPacket,
   BlockTypeMove,
   BlockTypeInfo,
+  DemoIdentString,
+  DemoProtocolVersion,
   MaxTriggerKeys,
   NetEventClassBitSize,
   NetEventClassFirst,
@@ -20,8 +20,6 @@ import {
   GhostIdBitSize,
   DataBlockClassFirst,
   DataBlockClassNames,
-  NetObjectClassNames,
-  NetEventClassNames,
   SimDBEventObjectIdBits,
   SimDBEventClassIdBits,
   SimDBEventIndexBits,
@@ -46,8 +44,32 @@ import type {
 } from "./types.js";
 
 const debug = createDebug("t2-demo-parser");
+/**
+ * Sequence numbers assigned to ordered events carried in the demo start
+ * block: past every 32-bit sequence, so they stay queued without ever
+ * matching `nextRecvEventSeq` (see setupPacketParser).
+ */
+const START_BLOCK_EVENT_SEQ_BASE = 0x1_0000_0000;
+
 const debugInitial = createDebug("t2-demo-parser:initial");
 const debugBlocks = createDebug("t2-demo-parser:blocks");
+
+/**
+ * Read a U32 count and reject it unless `minBitsPerEntry × count` bits
+ * remain: exhausted reads return 0 without throwing, so a corrupt count
+ * would otherwise spin allocating until memory ran out.
+ */
+function readCheckedCount(
+  bs: BitStream,
+  minBitsPerEntry: number,
+  what: string,
+): number {
+  const count = bs.readU32();
+  if (count > bs.getRemainingBits() / minBitsPerEntry) {
+    throw new Error(`Invalid ${what}: ${count}`);
+  }
+  return count;
+}
 
 export class DemoParser {
   private buffer: Uint8Array;
@@ -83,7 +105,24 @@ export class DemoParser {
   private _scanOffset = 0;
   private _bufferedMoveTicks = 0;
 
-  constructor(buffer: Uint8Array, options?: { incremental?: boolean }) {
+  private readonly _ignoreProtocolVersion: boolean;
+  private readonly _haltOnFault: boolean | undefined;
+
+  constructor(
+    buffer: Uint8Array,
+    options?: {
+      /** Feed the compressed block stream in chunks via push()/finish(). */
+      incremental?: boolean;
+      /**
+       * Parse demos whose protocol version differs from build 25034's
+       * (0x330004). The game itself refuses to play them, and the block
+       * formats are not guaranteed to match, so expect faults.
+       */
+      ignoreProtocolVersion?: boolean;
+      /** Passed to PacketParser; see its `haltOnFault` option. */
+      haltOnFault?: boolean;
+    },
+  ) {
     this.buffer = buffer;
     this.view = new DataView(
       buffer.buffer,
@@ -92,68 +131,12 @@ export class DemoParser {
     );
     this.offset = 0;
     this._incremental = options?.incremental === true;
-    this.registry = new ClassRegistry();
+    this._ignoreProtocolVersion = options?.ignoreProtocolVersion === true;
+    this._haltOnFault = options?.haltOnFault;
+    // Parser catalogs bound to their deterministic classIds (derived from
+    // binary analysis of the Tribes 2 executable).
+    this.registry = createDefaultRegistry();
     this.ghostTracker = new GhostTracker();
-
-    // Register parser catalogs
-    registerEventParsers(this.registry);
-    registerGhostParsers(this.registry);
-    registerDataBlockParsers(this.registry);
-
-    // Bind DataBlock parsers deterministically using the known class name
-    // mapping derived from binary analysis of the Tribes 2 executable.
-    // ClassIds are assigned alphabetically (C strcmp) starting at
-    // DataBlockClassFirst (128).
-    const { bound: dbBound, missing: dbMissing } =
-      this.registry.bindDeterministicDataBlocks(
-        DataBlockClassNames,
-        DataBlockClassFirst,
-      );
-    if (dbMissing.length > 0) {
-      debug(
-        "DataBlock binding: %d/%d bound, missing parsers: %s",
-        dbBound,
-        DataBlockClassNames.length,
-        dbMissing.join(", "),
-      );
-    }
-
-    // Bind ghost (NetObject) parsers deterministically using the known
-    // class name mapping derived from binary analysis. The 53 NetObject
-    // classes are sorted alphabetically (C strcmp) and assigned sequential
-    // classIds starting at NetObjectClassFirst (0).
-    const { bound: ghostBound, missing: ghostMissing } =
-      this.registry.bindDeterministicGhosts(
-        NetObjectClassNames,
-        NetObjectClassFirst,
-      );
-    if (ghostMissing.length > 0) {
-      debug(
-        "Ghost binding: %d/%d bound, missing parsers: %s",
-        ghostBound,
-        NetObjectClassNames.length,
-        ghostMissing.join(", "),
-      );
-    }
-
-    // Bind event (NetEvent) parsers deterministically using the known
-    // class name mapping derived from binary analysis. The 26 NetEvent
-    // classes are sorted alphabetically (C strcmp) and assigned sequential
-    // classIds starting at NetEventClassFirst (255).
-    const { bound: eventBound, missing: eventMissing } =
-      this.registry.bindDeterministicEvents(
-        NetEventClassNames,
-        NetEventClassFirst,
-      );
-    if (eventMissing.length > 0) {
-      debug(
-        "Event binding: %d/%d bound, missing parsers: %s",
-        eventBound,
-        NetEventClassNames.length,
-        eventMissing.join(", "),
-      );
-    }
-
     this.packetParser = new PacketParser(this.registry, this.ghostTracker);
   }
 
@@ -189,20 +172,36 @@ export class DemoParser {
     if (!this._loaded) throw new Error("must call load() first");
     if (this._blockCount === undefined) {
       // Lazy scan: walk decompressed buffer counting U16 headers
-      const data = this._decompressedData!;
-      const view = this._decompressedView!;
       let count = 0;
-      let off = 0;
-      while (off + 2 <= data.length) {
-        const typeSize = view.getUint16(off, true);
-        const size = typeSize & 0xfff;
-        off += 2 + size;
-        if (off > data.length) break;
+      this._walkBlockHeaders(0, () => {
         count++;
-      }
+      });
       this._blockCount = count;
     }
     return this._blockCount;
+  }
+
+  /**
+   * Walk complete block headers from byte offset `from`, calling `visit`
+   * for each; returns the offset of the first incomplete block (or the
+   * end of the data).
+   */
+  private _walkBlockHeaders(
+    from: number,
+    visit: (type: number, size: number) => void,
+  ): number {
+    const data = this._decompressedData;
+    const view = this._decompressedView;
+    if (!data || !view) return from;
+    let off = from;
+    while (off + 2 <= data.length) {
+      const typeSize = view.getUint16(off, true);
+      const size = typeSize & 0xfff;
+      if (off + 2 + size > data.length) break;
+      visit(typeSize >> 12, size);
+      off += 2 + size;
+    }
+    return off;
   }
 
   get blockCursor(): number {
@@ -238,14 +237,18 @@ export class DemoParser {
       header.initialBlockSize,
     );
 
-    if (
-      this._incremental &&
-      this.buffer.length < this.offset + header.initialBlockSize
-    ) {
+    if (this.buffer.length < this.offset + header.initialBlockSize) {
+      if (this._incremental) {
+        throw new RangeError(
+          `incremental parser needs the full initial block up front: have ${
+            this.buffer.length - this.offset
+          } bytes, need ${header.initialBlockSize}`,
+        );
+      }
       throw new RangeError(
-        `incremental parser needs the full initial block up front: have ${
+        `truncated demo: initial block needs ${header.initialBlockSize} bytes, have ${
           this.buffer.length - this.offset
-        } bytes, need ${header.initialBlockSize}`,
+        }`,
       );
     }
     const initialBlockData = this.buffer.subarray(
@@ -420,19 +423,10 @@ export class DemoParser {
   }
 
   private _scanBufferedTicks(): void {
-    const data = this._decompressedData;
-    const view = this._decompressedView;
-    if (!data || !view) return;
-    let off = this._scanOffset;
     let ticks = this._bufferedMoveTicks;
-    while (off + 2 <= data.length) {
-      const typeSize = view.getUint16(off, true);
-      const size = typeSize & 0xfff;
-      if (off + 2 + size > data.length) break;
-      if (typeSize >> 12 === BlockTypeMove) ticks++;
-      off += 2 + size;
-    }
-    this._scanOffset = off;
+    this._scanOffset = this._walkBlockHeaders(this._scanOffset, (type) => {
+      if (type === BlockTypeMove) ticks++;
+    });
     this._bufferedMoveTicks = ticks;
   }
 
@@ -499,26 +493,28 @@ export class DemoParser {
     };
     this._blockCursor++;
 
-    if (type === BlockTypePacket) {
-      try {
+    // PacketParser reports problems through parseFault rather than
+    // throwing; anything that does escape is a parser bug, and the raw
+    // block plus the error text is kept for diagnosis.
+    try {
+      if (type === BlockTypePacket) {
         block.parsed = this.packetParser.parsePacket(blockData);
-      } catch {
-        // Skip unparseable packets
-      }
-    } else if (type === BlockTypeSendPacket) {
-      this.packetParser.onSendPacketTrigger();
-    } else if (type === BlockTypeMove && size === 64) {
-      try {
+      } else if (type === BlockTypeSendPacket) {
+        this.packetParser.onSendPacketTrigger();
+      } else if (type === BlockTypeMove && size === 64) {
         block.parsed = this.readRawMove(blockData);
-      } catch {
-        // Skip unparseable moves
-      }
-    } else if (type === BlockTypeInfo && size === 8) {
-      try {
+      } else if (type === BlockTypeInfo && size === 8) {
         block.parsed = this.readInfoBlock(blockData);
-      } catch {
-        // Skip unparseable info blocks
       }
+    } catch (e) {
+      block.parseError = e instanceof Error ? e.message : String(e);
+      debugBlocks(
+        "block %d (type %d, %d bytes) threw: %s",
+        block.index,
+        type,
+        size,
+        block.parseError,
+      );
     }
 
     return block;
@@ -586,6 +582,20 @@ export class DemoParser {
       connectionProtocolState: initialBlock.connectionState,
       nextRecvEventSeq: initialBlock.nextRecvEventSeq,
       compressionPoint: initialBlock.initialCompressionPoint,
+      // NetConnection::eventReadStartBlock (FUN_00583ac0) appends the
+      // start block's in-flight ordered events to the wait queue without
+      // a sequence number (the field is never written; NetEvent's
+      // constructor leaves it uninitialized), so in the engine they can
+      // only ever dispatch by accident of heap contents. The deterministic
+      // stand-in keeps them queued behind every possible real sequence
+      // number, where they neither dispatch nor block dispatch.
+      pendingGuaranteedEvents: initialBlock.initialEvents
+        .filter((event) => !event.failed)
+        .map((event, i) => ({
+          absoluteSequenceNumber: START_BLOCK_EVENT_SEQ_BASE + i,
+          event,
+        })),
+      haltOnFault: this._haltOnFault,
     });
 
     this.ghostTracker = gt;
@@ -603,28 +613,31 @@ export class DemoParser {
     return { header, initialBlock, blocks };
   }
 
+  /**
+   * Read and validate the header the way GameConnection's demo playback
+   * does: the ident string must match and the protocol version must be
+   * the one this build speaks (unless `ignoreProtocolVersion` is set).
+   */
   private readHeader(): DemoHeader {
-    // Read the identification string: U8 length + string
-    const strLen = this.view.getUint8(this.offset);
-    this.offset += 1;
-    const identString = new TextDecoder("ascii").decode(
-      this.buffer.subarray(this.offset, this.offset + strLen),
+    const { header, byteLength } = DemoParser.peekHeader(
+      this.buffer.subarray(this.offset),
     );
-    this.offset += strLen;
-
-    // U32 protocol version
-    const protocolVersion = this.view.getUint32(this.offset, true);
-    this.offset += 4;
-
-    // U32 demo length in ms
-    const demoLengthMs = this.view.getUint32(this.offset, true);
-    this.offset += 4;
-
-    // U32 initial block size
-    const initialBlockSize = this.view.getUint32(this.offset, true);
-    this.offset += 4;
-
-    return { identString, protocolVersion, demoLengthMs, initialBlockSize };
+    this.offset += byteLength;
+    if (header.identString !== DemoIdentString) {
+      throw new Error(
+        `not a Tribes 2 recording: ident string ${JSON.stringify(header.identString)}`,
+      );
+    }
+    if (header.protocolVersion !== DemoProtocolVersion) {
+      const detail = `protocol version 0x${header.protocolVersion.toString(16)} (expected 0x${DemoProtocolVersion.toString(16)})`;
+      if (!this._ignoreProtocolVersion) {
+        throw new Error(
+          `unsupported demo ${detail}; the game rejects it too. Pass { ignoreProtocolVersion: true } to try anyway.`,
+        );
+      }
+      debug("parsing demo with unexpected %s", detail);
+    }
+    return header;
   }
 
   /** Parse the initial block: DataBlocks, scores, targets, connection state,
@@ -710,7 +723,8 @@ export class DemoParser {
     for (let i = 0; i < 16; i++) stateArray.push(bs.readU32());
 
     // --- B.6 U32 score entry count ---
-    const scoreCount = bs.readU32();
+    // A score entry is at least 3 + 18 + 1 + 6 = 28 bits (FUN_00601800).
+    const scoreCount = readCheckedCount(bs, 28, "score entry count");
 
     // --- B.7 Score entries × count (FUN_00601800) ---
     const scoreEntries: ScoreEntry[] = [];
@@ -778,6 +792,25 @@ export class DemoParser {
     // The reader allocates notify nodes in memory but does not consume
     // per-notify records from the bitstream in this phase.
     const notifyCount = bs.readU32();
+    // Engine invariant (verified in build 25034): the start block carries
+    // one PacketNotify per in-flight packet, i.e. exactly
+    // lastSendSeq - highestAckedSeq of them. checkPacketSend
+    // (FUN_005877e0) refuses to queue a notify while windowFull
+    // (FUN_0043d720: lastSendSeq - highestAckedSeq > 0x1d), and
+    // handleNotify (FUN_005874d0) pops the queue head with no null check on
+    // every newly acked sequence, so a mismatched seed crashes playback on
+    // the first ack. Every Tribes2.exe recording satisfies this exactly.
+    const warnings: string[] = [];
+    const inFlight =
+      (connectionState.lastSendSeq - connectionState.highestAckedSeq) >>> 0;
+    if (notifyCount !== inFlight) {
+      warnings.push(
+        `notify count ${notifyCount} does not match in-flight packets ` +
+          `(lastSendSeq ${connectionState.lastSendSeq} - highestAckedSeq ` +
+          `${connectionState.highestAckedSeq} = ${inFlight}); Tribes2.exe ` +
+          `dereferences an empty notify queue on the first ack`,
+      );
+    }
     debugInitial(
       "after notify count bit=%d notifyCount=%d",
       bs.getCurPos(),
@@ -822,6 +855,13 @@ export class DemoParser {
       const ghostResult = this.readGhostStartBlock(bs, dataBlocks);
       ghostingSequence = ghostResult.ghostingSequence;
       initialGhosts = ghostResult.ghosts;
+      const lastInitialGhost = initialGhosts[initialGhosts.length - 1];
+      if (lastInitialGhost?.failed) {
+        // The engine sets "Invalid packet." here and drops the connection
+        // once the start block is done; the fields below are still read,
+        // misaligned, exactly as it reads them.
+        phase2Error ??= `initial ghost ${lastInitialGhost.index} (classId ${lastInitialGhost.classId}) failed: ${lastInitialGhost.error}`;
+      }
       debugInitial(
         "after initial ghosts bit=%d count=%d seq=%d",
         bs.getCurPos(),
@@ -839,41 +879,47 @@ export class DemoParser {
 
       // B.12 If != -1: controlObject readPacketData
       if (controlObjectGhostIndex !== -1) {
+        // The engine resolves the ghost and calls its readPacketData with
+        // no fallback; if we cannot, every later read in the initial
+        // block (mission name, CRC) would be misaligned, so fail phase 2.
         const ghost = ibGhostTracker.getGhost(controlObjectGhostIndex);
-        if (ghost) {
-          const parser = this.registry.getGhostParser(ghost.classId);
-          if (parser?.readPacketData) {
-            // getGhostParser enables the nested vehicle readPacketData
-            // when the recorder was piloting at recording start — without
-            // it those bytes go unread and every later read in the
-            // initial block (mission name, CRC) is misaligned.
-            const conn = {
-              compressionPoint: { x: 0, y: 0, z: 0 },
-              ghostTracker: ibGhostTracker,
-              getGhostParser: (classId: number) =>
-                this.registry.getGhostParser(classId),
-            };
-            controlObjectData = parser.readPacketData(bs, conn);
-            // The control object's readPacketData establishes the
-            // connection's compression point (its position) — carry it
-            // into the packet parser seed.
-            initialCompressionPoint = conn.compressionPoint;
-            debugInitial(
-              "after control readPacketData bit=%d parser=%s",
-              bs.getCurPos(),
-              parser.name,
-            );
-          }
+        if (!ghost) {
+          throw new Error(
+            `control object ghost ${controlObjectGhostIndex} not found among initial ghosts`,
+          );
         }
+        const parser = this.registry.getGhostParser(ghost.classId);
+        if (!parser?.readPacketData) {
+          throw new Error(
+            `control object ghost ${controlObjectGhostIndex} (${ghost.className}) has no readPacketData parser`,
+          );
+        }
+        // getGhostParser enables the nested vehicle readPacketData when
+        // the recorder was piloting at recording start.
+        const conn = {
+          compressionPoint: { x: 0, y: 0, z: 0 },
+          ghostTracker: ibGhostTracker,
+          getGhostParser: (classId: number) =>
+            this.registry.getGhostParser(classId),
+        };
+        controlObjectData = parser.readPacketData(bs, conn);
+        // The control object's readPacketData establishes the
+        // connection's compression point (its position) — carry it
+        // into the packet parser seed.
+        initialCompressionPoint = conn.compressionPoint;
+        debugInitial(
+          "after control readPacketData bit=%d parser=%s",
+          bs.getCurPos(),
+          parser.name,
+        );
       }
 
       // B.13 $MissionName
       missionName = bs.readString();
       // B.14 mMissionCRC
       missionCRC = bs.readU32();
-      // Byte-align (validate) before SimpleTargetManagers
-      bs.setCurPos(((bs.getCurPos() + 7) >> 3) << 3);
-      // B.15 Simple TargetManager ×2
+      // B.15 Simple TargetManager ×2. FUN_006021b0 reads U8 + 4×U32 at the
+      // current bit position; the binary does not byte-align here.
       this.readSimpleTargetManager(bs);
       this.readSimpleTargetManager(bs);
       debugInitial(
@@ -912,6 +958,9 @@ export class DemoParser {
       phase2Valid,
       phase2Error ? ` error=${phase2Error}` : "",
     );
+    for (const warning of warnings) {
+      debug("initial block warning: %s", warning);
+    }
 
     return {
       taggedStrings,
@@ -942,6 +991,7 @@ export class DemoParser {
       phase2TrailingBits: remaining,
       phase2Valid,
       phase2Error,
+      warnings,
     };
   }
 
@@ -1084,10 +1134,14 @@ export class DemoParser {
    */
   private readPathManager(bs: BitStream): PathManagerEntry[] {
     const entries: PathManagerEntry[] = [];
-    const entryCount = bs.readU32();
+    const entryCount = readCheckedCount(bs, 64, "PathManager entry count");
     for (let i = 0; i < entryCount; i++) {
       const entryId = bs.readU32();
-      const recordCount = bs.readU32();
+      const recordCount = readCheckedCount(
+        bs,
+        128,
+        "PathManager record count",
+      );
       const records: {
         field0: number;
         field1: number;
@@ -1222,11 +1276,10 @@ export class DemoParser {
       ghostingSequence,
       bs.getCurPos(),
     );
-    const ghostCatalog = this.registry.getGhostCatalog();
     const totalBits = bs.getBuffer().length * 8;
 
-    // Build DataBlock data lookup for ghost parsers that need it
-    // (e.g., WheeledVehicle needs shape name to determine wheel count).
+    // DataBlock data lookup for ghost parsers that resolve datablock
+    // fields during unpack.
     const dataBlockDataMap = new Map<number, Record<string, unknown>>();
     for (const [objectId, db] of dataBlocks) {
       dataBlockDataMap.set(objectId, db.data);
@@ -1239,86 +1292,83 @@ export class DemoParser {
       const classId = bs.readInt(NetObjectClassBitSize) + NetObjectClassFirst;
       const updateBitsStart = bs.getCurPos();
 
-      // Build ordered list of parser candidates.
-      // Registry binding (from deterministic classId) is preferred over
-      // DataBlock-based identification because the classId is authoritative
-      // while the DataBlock type may be a base class (e.g., StaticShapeData
-      // used by a BeaconObject, which extends StaticShape with extra fields).
-      const candidates: { entry: GhostParserEntry; method: string }[] = [];
-      const seen = new Set<GhostParserEntry>();
-
-      // Peek at DataBlock flag to identify ghost via DataBlock type
-      const { entry: dbEntry } = this.identifyGhostViaDataBlock(
-        bs,
-        dataBlocks,
-        ghostCatalog,
-      );
-
-      // Candidate 1: registry binding (deterministic classId)
-      const regEntry = this.registry.getGhostParser(classId);
-      if (regEntry) {
-        candidates.push({ entry: regEntry, method: "registry" });
-        seen.add(regEntry);
-      }
-
-      // Candidate 2: DataBlock-based identification (fallback)
-      if (dbEntry && !seen.has(dbEntry)) {
-        candidates.push({ entry: dbEntry, method: "datablock" });
-        seen.add(dbEntry);
-      }
-
-      // Try each candidate with alignment validation
-      const connOverrides = {
-        getDataBlockData: (objectId: number) => dataBlockDataMap.get(objectId),
-        getDataBlockParser: (cid: number) =>
-          this.registry.getDataBlockParser(cid),
-      };
-      let parsed = false;
-      for (const { entry, method } of candidates) {
-        const isTrusted = method === "registry";
-        const result = this.tryGhostParser(
-          bs,
-          entry,
+      // NetConnection::ghostReadStartBlock (FUN_00585220): create the
+      // object from the class id, call its unpackUpdate, register it.
+      // An unknown class id or a failed registration is "Invalid packet."
+      // — the engine stops reading ghosts and the connection is dead.
+      // There is no second candidate and no plausibility check.
+      const entry = this.registry.getGhostParser(classId);
+      if (!entry) {
+        debugInitial(
+          "  ghost idx=%d classId=%d NO CLASS (stopping at bit=%d)",
+          index,
+          classId,
           updateBitsStart,
-          totalBits,
-          false,
-          connOverrides,
-          isTrusted,
         );
-        if (result !== false) {
-          this.ghostTracker.createGhost(index, classId, entry.name);
-          debugInitial(
-            "  ghost idx=%d classId=%d parser=%s bits=%d via=%s",
-            index,
-            classId,
-            entry.name,
-            bs.getCurPos() - updateBitsStart,
-            method,
-          );
-          ghosts.push({
-            index,
-            type: "create",
-            classId,
-            updateBitsStart,
-            updateBitsEnd: bs.getCurPos(),
-            parsedData: result,
-          });
-          parsed = true;
-          break;
-        }
+        ghosts.push({
+          index,
+          type: "create",
+          classId,
+          updateBitsStart,
+          updateBitsEnd: updateBitsStart,
+          failed: true,
+          error: `no ghost class bound to classId ${classId}`,
+        });
+        break;
       }
 
-      if (parsed) continue;
+      let parsedData: Record<string, unknown>;
+      try {
+        parsedData =
+          entry.unpackUpdate(bs, true, {
+            compressionPoint: { x: 0, y: 0, z: 0 },
+            ghostTracker: this.ghostTracker,
+            getDataBlockData: (objectId: number) =>
+              dataBlockDataMap.get(objectId),
+            getDataBlockParser: (cid: number) =>
+              this.registry.getDataBlockParser(cid),
+          }) ?? {};
+        if (bs.isError()) {
+          throw new Error("ran past the end of the initial block");
+        }
+      } catch (e) {
+        const error = `${entry.name}: ${e instanceof Error ? e.message : String(e)}`;
+        debugInitial(
+          "  ghost idx=%d classId=%d parser=%s FAILED at bit=%d: %s",
+          index,
+          classId,
+          entry.name,
+          bs.getCurPos(),
+          error,
+        );
+        ghosts.push({
+          index,
+          type: "create",
+          classId,
+          updateBitsStart,
+          updateBitsEnd: bs.getCurPos(),
+          failed: true,
+          error,
+        });
+        break;
+      }
 
-      // No candidate worked — stop parsing ghosts
+      this.ghostTracker.createGhost(index, classId, entry.name);
       debugInitial(
-        "  ghost idx=%d classId=%d NO PARSER (stopping at bit=%d, remaining=%d)",
+        "  ghost idx=%d classId=%d parser=%s bits=%d",
         index,
         classId,
-        updateBitsStart,
-        totalBits - updateBitsStart,
+        entry.name,
+        bs.getCurPos() - updateBitsStart,
       );
-      break;
+      ghosts.push({
+        index,
+        type: "create",
+        classId,
+        updateBitsStart,
+        updateBitsEnd: bs.getCurPos(),
+        parsedData,
+      });
     }
 
     debugInitial(
@@ -1328,139 +1378,6 @@ export class DemoParser {
       ghosts.length,
     );
     return { ghostingSequence, ghosts };
-  }
-
-  /**
-   * Try parsing a ghost with a given parser and validate alignment.
-   * Returns true if parsing succeeded and alignment is valid.
-   * On success, the BitStream is positioned after the parsed ghost data.
-   * On failure, the BitStream is restored to updateBitsStart.
-   */
-  private tryGhostParser(
-    bs: BitStream,
-    entry: GhostParserEntry,
-    updateBitsStart: number,
-    totalBits: number,
-    silent = false,
-    connOverrides?: Partial<import("./ClassRegistry.js").ConnectionContext>,
-    trusted = false,
-  ): Record<string, unknown> | false {
-    const savedPos = bs.savePos();
-    if (!silent) {
-      debugInitial("    try %s: startBit=%d", entry.name, updateBitsStart);
-    }
-    try {
-      const parsedData = entry.unpackUpdate(bs, true, {
-        compressionPoint: { x: 0, y: 0, z: 0 },
-        ghostTracker: this.ghostTracker,
-        ...connOverrides,
-      });
-      const bitsConsumed = bs.getCurPos() - updateBitsStart;
-      const remaining = totalBits - bs.getCurPos();
-
-      if (bs.isError() || (!trusted && bitsConsumed < 3)) {
-        if (!silent) {
-          debugInitial(
-            "    reject %s: bits=%d isError=%s",
-            entry.name,
-            bitsConsumed,
-            bs.isError(),
-          );
-        }
-        bs.restorePos(savedPos);
-        return false;
-      }
-
-      // Validate alignment: if substantial data remains, the next
-      // continuation flag must be 1 (more ghosts in the snapshot).
-      if (remaining > 1000) {
-        const peekPos = bs.getCurPos();
-        const nextFlag = bs.readFlag();
-        bs.setCurPos(peekPos);
-        if (!nextFlag) {
-          if (!silent) {
-            debugInitial(
-              "    reject %s: bits=%d misaligned (remaining=%d)",
-              entry.name,
-              bitsConsumed,
-              remaining,
-            );
-          }
-          bs.restorePos(savedPos);
-          return false;
-        }
-      }
-
-      return parsedData ?? {};
-    } catch (e) {
-      if (!silent) {
-        debugInitial(
-          "    reject %s: error at bit=%d: %s",
-          entry.name,
-          bs.getCurPos(),
-          e instanceof Error ? e.message : String(e),
-        );
-      }
-      bs.restorePos(savedPos);
-      return false;
-    }
-  }
-
-  /**
-   * Peek at the GameBase DataBlock prefix to identify a ghost's parser.
-   * GameBase subclass ghost creates always start with:
-   *   flag(1b) + if flag: DataBlockId(11b)
-   * The DataBlock type (e.g., "PlayerData") maps to the ghost parser
-   * (e.g., "Player") by stripping the "Data" suffix.
-   *
-   * Returns { entry, dbFlag } where entry is the parser (if found) and
-   * dbFlag indicates whether the first bit was 1 (DataBlock flag set).
-   * In the initial block (mask=0xFFFFFFFF), dbFlag=false means the ghost
-   * is definitely NOT a GameBase subclass.
-   * The BitStream position is always restored after peeking.
-   */
-  private identifyGhostViaDataBlock(
-    bs: BitStream,
-    dataBlocks: Map<number, ParsedDataBlock> | undefined,
-    ghostCatalog: Map<string, GhostParserEntry>,
-  ): { entry: GhostParserEntry | undefined; dbFlag: boolean } {
-    if (!dataBlocks) return { entry: undefined, dbFlag: false };
-
-    const savedPos = bs.savePos();
-    let entry: GhostParserEntry | undefined;
-    let dbFlag = false;
-
-    try {
-      dbFlag = bs.readFlag();
-      if (dbFlag) {
-        const dbId = bs.readInt(11);
-        const db = dataBlocks.get(dbId);
-        if (db) {
-          const ghostName = db.className.replace(/Data$/, "");
-          entry = ghostCatalog.get(ghostName);
-          if (!entry) {
-            debugInitial(
-              "    identifyGhostViaDataBlock: dbId=%d className=%s ghostName=%s (no ghost parser)",
-              dbId,
-              db.className,
-              ghostName,
-            );
-          }
-        } else {
-          debugInitial(
-            "    identifyGhostViaDataBlock: dbId=%d (no DataBlock found)",
-            dbId,
-          );
-        }
-      } else {
-        debugInitial("    identifyGhostViaDataBlock: DataBlock flag=0");
-      }
-    } catch {
-      // Ignore errors during peek
-    }
-
-    bs.restorePos(savedPos);
-    return { entry, dbFlag };
   }
 
   /**
@@ -1526,8 +1443,10 @@ export class DemoParser {
   private readInfoBlock(data: Uint8Array): InfoBlock {
     const dv = new DataView(data.buffer, data.byteOffset, data.byteLength);
     return {
-      value1: dv.getUint32(0, true),
-      value2: dv.getFloat32(4, true),
+      // GameConnection::handleRecordedBlock (FUN_005fb170) case 3 reads
+      // only byte 0 as firstPerson and the F32 at +4 as the camera FOV.
+      firstPerson: data[0] !== 0,
+      cameraFov: dv.getFloat32(4, true),
     };
   }
 }

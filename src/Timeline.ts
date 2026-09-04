@@ -5,7 +5,7 @@ import type {
   GhostUpdate,
   NetEventInfo,
 } from "./types.js";
-import { BlockTypePacket } from "./types.js";
+import { BlockTypePacket, BlockTypeMove, MoveTickMs } from "./types.js";
 import type { ClassRegistry, ParsedData } from "./ClassRegistry.js";
 import type { Vec3, Quat } from "./dataTypes.js";
 
@@ -55,6 +55,7 @@ export interface GameEvent {
 /** Complete timeline extracted from a demo file. */
 export interface DemoTimeline {
   durationMs: number;
+  /** Simulation tick length (MoveTickMs); keyframe times are multiples of it. */
   tickIntervalMs: number;
   packetCount: number;
   ghostInstances: GhostInstance[];
@@ -69,28 +70,38 @@ export interface DemoTimeline {
 /**
  * Extracts a time-indexed DemoTimeline from a parsed DemoFile.
  *
- * Timestamps are derived by distributing packet blocks evenly across
- * the demo duration (Torque sends packets at a fixed tick rate).
+ * Each Move block is one fixed 32ms simulation tick, so a packet's
+ * timestamp is the number of Move blocks that precede it × 32ms. This is
+ * exact demo time (the recorder writes a Move block every tick whether or
+ * not a packet arrived), and it matches `DemoParser.bufferedMoveTicks`.
  */
 export function buildTimeline(
   demo: DemoFile,
   registry: ClassRegistry
 ): DemoTimeline {
-  const packetBlocks: { block: DemoBlock; pkt: PacketData }[] = [];
+  const packetBlocks: { block: DemoBlock; pkt: PacketData; time: number }[] =
+    [];
 
+  let ticks = 0;
   for (const block of demo.blocks) {
-    if (
+    if (block.type === BlockTypeMove) {
+      ticks++;
+    } else if (
       block.type === BlockTypePacket &&
       block.parsed &&
       "dnetHeader" in block.parsed
     ) {
-      packetBlocks.push({ block, pkt: block.parsed });
+      packetBlocks.push({
+        block,
+        pkt: block.parsed,
+        time: ticks * MoveTickMs,
+      });
     }
   }
 
   const packetCount = packetBlocks.length;
   const durationMs = demo.header.demoLengthMs;
-  const tickIntervalMs = packetCount > 1 ? durationMs / (packetCount - 1) : 0;
+  const tickIntervalMs = MoveTickMs;
 
   // Track active ghost instances (ghostIndex → current instance)
   const activeGhosts = new Map<number, GhostInstance>();
@@ -119,8 +130,7 @@ export function buildTimeline(
   }
 
   for (let i = 0; i < packetBlocks.length; i++) {
-    const time = i * tickIntervalMs;
-    const { pkt } = packetBlocks[i];
+    const { pkt, time } = packetBlocks[i];
 
     // --- Control object position ---
     if (pkt.gameState.compressionPoint || pkt.gameState.controlObjectData) {
@@ -215,16 +225,21 @@ export function buildTimeline(
 
 /**
  * Check if a Vec3 position is within reasonable game world bounds.
- * Rejects IEEE 754 denormalized values (e.g., 1.66e-34) that indicate
- * garbage data from bit stream misalignment.
+ * Rejects non-finite values, anything beyond the largest terrain, and
+ * near-zero magnitudes (e.g. 1.66e-34) that only arise from
+ * misaligned bit reads — no real coordinate is below a micrometre
+ * unless it is exactly zero.
  */
+const MaxWorldCoordinate = 50000;
+const MinNonZeroCoordinate = 1e-6;
+
 function isValidPosition(pos: Vec3): boolean {
   const vals = [pos.x, pos.y, pos.z];
   return vals.every(
     (v) =>
       Number.isFinite(v) &&
-      Math.abs(v) < 50000 &&
-      (Math.abs(v) >= 0.01 || v === 0)
+      Math.abs(v) < MaxWorldCoordinate &&
+      (Math.abs(v) >= MinNonZeroCoordinate || v === 0)
   );
 }
 

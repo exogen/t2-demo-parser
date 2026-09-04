@@ -1,11 +1,14 @@
 export { DemoParser } from "./DemoParser.js";
 export { BitStream } from "./BitStream.js";
+export { BitWriter } from "./BitWriter.js";
+export { createDefaultRegistry } from "./defaultRegistry.js";
 export { PacketParser } from "./PacketParser.js";
 export { ClassRegistry } from "./ClassRegistry.js";
 export { GhostTracker } from "./GhostManager.js";
 export {
   createLiveParser,
   passiveObserverProtocolState,
+  freshConnectionProtocolState,
 } from "./LiveParser.js";
 export type { LiveParserKit, LiveParserSeed } from "./LiveParser.js";
 export {
@@ -32,6 +35,7 @@ export type {
   RateInfo,
   GameState,
   PacketData,
+  ParseFault,
   NetEventInfo,
   GhostUpdate,
   LoadResult,
@@ -42,6 +46,9 @@ export {
   BlockTypeSendPacket,
   BlockTypeMove,
   BlockTypeInfo,
+  DemoIdentString,
+  DemoProtocolVersion,
+  MoveTickMs,
   MaxGhostCount,
   GhostIdBitSize,
   NetStringTableMaxStrings,
@@ -103,8 +110,10 @@ export type {
   ShapeBaseGhostData,
   PlayerGhostData,
   PlayerPacketData,
+  ShapeBasePacketData,
   VehicleGhostData,
   VehiclePacketData,
+  TurretPacketData,
   WheeledVehicleGhostData,
   WheeledVehiclePacketData,
   FlyingVehicleGhostData,

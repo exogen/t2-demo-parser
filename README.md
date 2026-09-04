@@ -11,6 +11,8 @@ thread responsive: in browsers, decompression runs in a Web Worker via
 [fflate](https://github.com/101arrowz/fflate), and blocks are parsed lazily
 one at a time.
 
+Requires Node.js 18 or newer (or any modern browser).
+
 ## Quick start
 
 ```typescript
@@ -75,13 +77,24 @@ All parser bindings (53 ghost classes, 54 DataBlock classes, 26 event classes)
 are set up deterministically in the constructor.
 
 ```typescript
-const parser = new DemoParser(buffer: Uint8Array);
+const parser = new DemoParser(buffer: Uint8Array, options?: {
+  incremental?: boolean; // feed the block stream via push()/finish()
+  ignoreProtocolVersion?: boolean; // see below
+  haltOnFault?: boolean; // passed to PacketParser (default true)
+});
 ```
 
 #### `async load(): Promise<LoadResult>`
 
 Parse the header and initial block, then asynchronously decompress the block
 stream. Does **not** parse any blocks — use `nextBlock()` to consume them.
+
+The header is validated the way the game's demo playback validates it: the
+ident string must be `"Tribes2 Recording"` and the protocol version must be
+`0x330004` (build 25034), otherwise `load()` throws. The game refuses to play
+other versions too, and their block formats are not guaranteed to match; pass
+`{ ignoreProtocolVersion: true }` to try anyway. A buffer too short to hold
+the initial block throws a `RangeError`.
 
 Idempotent: calling `load()` again returns the cached result.
 
@@ -96,6 +109,9 @@ interface LoadResult {
 
 Read and parse the next block from the decompressed stream. Returns `undefined`
 when the stream is exhausted. Each call advances `blockCursor` by one.
+Packets that the parser cannot fully consume are reported through
+`PacketData.parseFault` (see `PacketParser` below); a block whose decoder
+threw carries the message in `DemoBlock.parseError`.
 
 Blocks are transient — only one exists in memory at a time (previous blocks are
 eligible for GC unless you retain a reference).
@@ -208,6 +224,9 @@ interface InitialBlockData {
   phase2Valid?: boolean;
   phase2Error?: string;
   phase2TrailingBits?: number;
+  // Seeded state Tribes2.exe would crash on during playback (always empty
+  // for recordings made by the game; see freshConnectionProtocolState).
+  warnings: string[];
 }
 ```
 
@@ -225,6 +244,14 @@ interface DemoBlock {
   size: number; // Payload size in bytes
   data: Uint8Array; // Raw payload
   parsed?: PacketData | Move | InfoBlock;
+  parseError?: string; // Set if decoding threw (a parser bug)
+}
+
+// Type 3 block: written after every received packet, replayed through
+// setControlCameraFov on playback.
+interface InfoBlock {
+  firstPerson: boolean; // $firstPerson (byte 0; the other 3 bytes are garbage)
+  cameraFov: number; // control camera FOV in degrees
 }
 ```
 
@@ -241,6 +268,11 @@ interface PacketData {
   gameState: GameState;
   events: NetEventInfo[];
   ghosts: GhostUpdate[];
+  /** Set when any section failed to parse; the ghost tracker and
+   *  event sequence no longer mirror the server, so a live consumer
+   *  must re-sync from a fresh connection (the engine disconnects).
+   *  The message names the parser and the underlying error. */
+  parseFault?: { stage: "gameState" | "event" | "ghost"; message: string };
 }
 ```
 
@@ -259,6 +291,7 @@ interface GameState {
   controlObjectDataStart?: number; // Bit offsets of the control object
   controlObjectDataEnd?: number; // update within the packet
   controlObjectData?: Record<string, unknown>;
+  controlObjectError?: string; // Why readPacketData could not be applied
   compressionPoint?: { x: number; y: number; z: number };
   cameraFov?: number;
   targetVisibility?: { index: number; mask: number }[];
@@ -286,6 +319,8 @@ interface GhostUpdate {
   updateBitsStart: number;
   updateBitsEnd: number;
   parsedData?: Record<string, unknown>; // Class-specific parsed fields
+  failed?: boolean; // Could not be parsed; the ghost section stops here
+  error?: string; // Parser name and error text when failed
 }
 ```
 
@@ -304,6 +339,7 @@ interface NetEventInfo {
   parsedData?: Record<string, unknown>;
   failed?: boolean; // Event could not be parsed; stream
   // position after it is unreliable
+  error?: string; // Parser name and error text when failed
 }
 ```
 
@@ -357,8 +393,11 @@ interface ParsedDataBlock {
 
 #### `buildTimeline(demo, registry): DemoTimeline`
 
-Extract a time-indexed timeline from a fully parsed `DemoFile`. Timestamps are
-derived by distributing packets evenly across the demo duration.
+Extract a time-indexed timeline from a fully parsed `DemoFile`. Every Move
+block is one 32ms simulation tick (`MoveTickMs`), so a packet's timestamp is
+the number of Move blocks before it × 32ms — exact demo time, the same clock
+as `DemoParser.bufferedMoveTicks` and the seek guide below. `tickIntervalMs`
+is always `MoveTickMs`.
 
 ```typescript
 import { buildTimeline } from "t2-demo-parser";
@@ -477,6 +516,27 @@ Available via `parser.getPacketParser()`. Exposes parse statistics.
 | `controlObjectFailed`   | `number` | Control object updates that failed.                             |
 | `protocolRejected`      | `number` | Packets rejected by the dnet protocol window.                   |
 | `protocolNoDispatch`    | `number` | Packets accepted but not dispatched (duplicates/out-of-window). |
+| `packetsDroppedAfterFault` | `number` | Packets returned empty because the parser had halted.        |
+
+#### Faults and halting
+
+The engine drops the connection on any packet it cannot read ("Invalid
+packet"). `PacketParser` mirrors that: the first packet whose game state,
+events, or ghosts fail to parse gets a `parseFault`, and by default the
+parser **halts** — every later `parsePacket()` returns an empty `PacketData`
+carrying the same fault and touches no state, because it would otherwise be
+parsing against ghost and event state that no longer mirrors the server.
+
+| Member      | Description                                                         |
+| ----------- | ------------------------------------------------------------------- |
+| `fault`     | The first `ParseFault`, or `undefined`.                             |
+| `faulted`   | `true` once a fault has been recorded.                              |
+
+Pass `haltOnFault: false` (to `new PacketParser`, `new DemoParser`, or
+`createLiveParser`) to keep parsing regardless; each later packet still
+reports its own `parseFault` when it has one. To continue after a fault,
+build a fresh parser: `DemoParser.reset()`, or a new `createLiveParser`
+seeded from a known-good exported state.
 
 #### State export (for seeding another parser)
 
@@ -490,8 +550,8 @@ late-joiner catch-up in live streaming.
 | `getConnectionProtocolState()`      | `ConnectionProtocolState` (dnet sequence window) |
 | `getNextRecvEventSeq()`             | `number`                                         |
 | `getPendingGuaranteedEvents()`      | Out-of-order guaranteed events awaiting dispatch |
-| `getCompressionPoint()`             | `{ x, y, z }`                                    |
-| `getDataBlockDataMap()`             | `Map<number, ParsedData> \| undefined`           |
+| `getCompressionPoint()`             | `{ x, y, z }` (a copy)                           |
+| `getDataBlockDataMap()`             | `ReadonlyMap<number, ParsedData> \| undefined`   |
 | `setConnectionProtocolState(state)` | — (also a constructor option)                    |
 
 ---
@@ -533,6 +593,7 @@ interface LiveParserSeed {
     absoluteSequenceNumber: number;
     event: NetEventInfo;
   }>;
+  haltOnFault?: boolean; // default true, see PacketParser
 }
 ```
 
@@ -545,6 +606,13 @@ sequences the observer didn't send. Intended for the first packets of a
 connection; to attach mid-stream, seed `connectionProtocolState` from the
 exporting parser instead.
 
+Parser-only: never write this state into a `.rec` initial block. The game
+requires the start block's notify count to equal
+`lastSendSeq - highestAckedSeq` and treats a difference above 0x1d as a
+full send window, so a demo seeded this way crashes Tribes2.exe on the
+first acknowledged packet. `DemoParser` reports such files in
+`initialBlock.warnings`.
+
 ```typescript
 import { createLiveParser, passiveObserverProtocolState } from "t2-demo-parser";
 
@@ -552,6 +620,14 @@ const { packetParser } = createLiveParser();
 // On the first received packet:
 packetParser.setConnectionProtocolState(passiveObserverProtocolState(data[0]));
 ```
+
+### `freshConnectionProtocolState(connectSequence): ConnectionProtocolState`
+
+The state of a connection that has not yet exchanged a sequenced packet:
+everything zero except the connect sequence, with `connectionEstablished`
+set. This is what a recording that starts at connect time must seed
+(with a notify count of 0), writing one SendPacket marker per packet the
+recorder actually sends, before the received packet that acks it.
 
 ---
 
@@ -596,6 +672,42 @@ const value = bs.readInt(10);
 const str = bs.readString();
 ```
 
+Reads never throw on short data: a read that would pass the end of the
+buffer returns zero (or an empty buffer), leaves the cursor in place, and
+sets the error flag, which `isError()` reports — the same contract as the
+engine's BitStream. `readInt` throws a `RangeError` for bit counts above 32.
+Strings are decoded byte-per-character (Latin-1); Tribes 2 tagged strings
+begin with `"\x01"`.
+
+### `BitWriter`
+
+The matching LSB-first bit packer, for building test vectors and synthetic
+packets: `writeFlag`, `writeInt`, `writeSignedInt`, `writeU8/U32/S32`,
+`writeF32`, `writeFloat`, `writeBytes`, and `writeString` (Huffman, exactly
+as the engine's `writeString`). `finish()` returns the packed `Uint8Array`.
+
+```typescript
+import { BitWriter, BitStream } from "t2-demo-parser";
+
+const bytes = new BitWriter().writeFlag(true).writeInt(5, 4).writeString("hi").finish();
+const bs = new BitStream(bytes); // readFlag() → true, readInt(4) → 5, readString() → "hi"
+```
+
+### `ClassRegistry` / `createDefaultRegistry()`
+
+`createDefaultRegistry()` returns a registry with every built-in parser bound
+to its deterministic classId — the same setup `DemoParser` and
+`createLiveParser` use. Lookups go both ways:
+
+| Method                                  | Returns                          |
+| --------------------------------------- | -------------------------------- |
+| `getGhostParser(classId)` etc.          | Parser entry for a bound classId |
+| `getGhostClassId(name)` etc.            | Bound classId for a class name   |
+| `getGhostCatalog()` etc.                | `ReadonlyMap<name, entry>`       |
+| `getGhostBindings()` etc.               | `Map<classId, name>` (debug)     |
+
+The `Event` and `DataBlock` variants of each method exist too.
+
 ---
 
 ### `GhostTracker`
@@ -606,7 +718,7 @@ Tracks the live state of all ghost objects. Available via
 ```typescript
 const tracker = parser.getGhostTracker();
 const ghost = tracker.getGhost(index); // GhostEntry | undefined
-const all = tracker.getAllGhosts(); // Map<number, GhostEntry>
+const all = tracker.getAllGhosts(); // ReadonlyMap<number, GhostEntry>
 tracker.size(); // Number of active ghosts
 ```
 
@@ -614,9 +726,11 @@ tracker.size(); // Number of active ghosts
 interface GhostEntry {
   classId: number;
   className: string;
-  state: Record<string, unknown>;
 }
 ```
+
+Accumulated per-ghost state lives in `GhostStateAccumulator`, not in the
+tracker.
 
 ---
 
@@ -630,6 +744,9 @@ import {
   BlockTypeSendPacket, // 1 — send-packet trigger (no data)
   BlockTypeMove, // 2 — 64-byte player input
   BlockTypeInfo, // 3 — 8-byte timing/FOV
+  MoveTickMs, // 32 — one Move block per simulation tick
+  DemoIdentString, // "Tribes2 Recording"
+  DemoProtocolVersion, // 0x330004 (build 25034)
 } from "t2-demo-parser";
 ```
 
@@ -886,9 +1003,55 @@ DEBUG=t2-demo-parser:initial npx t2-demo-parser demo.rec
 
 # Just block stream parsing
 DEBUG=t2-demo-parser:blocks npx t2-demo-parser demo.rec
+
+# Per-event / per-ghost parse failures and tracker re-creates
+DEBUG=t2-demo-parser:events,t2-demo-parser:ghosts,t2-demo-parser:ghost-tracker npx t2-demo-parser demo.rec
 ```
 
+### Known limitations
+
+- One archived demo (a 2000s-era recording) carries a TerrainBlock
+  `GhostAlwaysObjectEvent` after a mission change whose payload holds 377 more
+  bits than build 25034's `TerrainBlock::unpackUpdate` reads (a shared-prefix
+  string with the terrain's material list, then 91 unidentified bits). Seven
+  other mission-change TerrainBlock events in other demos match the binary
+  exactly, so this is a conditional extension of an unidentified client
+  build. The parser faults cleanly at that packet instead of guessing.
+- `SimVoiceStreamEvent` follows the binary's layout (which differs from the
+  V12 source), but no available demo contains voice traffic, so it is
+  verified against the disassembly only.
+
 ---
+
+## Upgrading from 2.x
+
+Breaking changes in this version:
+
+- **Halt on fault.** `PacketParser` stops after the first `parseFault`
+  (`haltOnFault: false` restores the old behaviour).
+- **Header validation.** `DemoParser.load()` throws on a wrong ident string or
+  protocol version (`ignoreProtocolVersion: true` to override).
+- **Timeline timestamps** come from Move ticks (32ms) instead of an even
+  spread of packets over the demo length; `tickIntervalMs` is now 32.
+- Removed fields: `GhostEntry.state`, `ConnectionContext.currentGhostIndex`,
+  `SimDataBlockEventData._payloadBitPos` / `_needsClassParser`,
+  `VehicleGhostData._controlledEarlyReturn`, `DebrisDataBlock.minSpinSpeed_dup`
+  / `maxSpinSpeed_dup` (the second wire copy now lands in `minSpinSpeed` /
+  `maxSpinSpeed`, as on the client). `GhostAlwaysObjectEventData._hasObjectData`
+  is now `hasObjectData`; `DebrisGhostData.objectRef2` is folded into
+  `objectRefs` (three entries); `ShapeBaseDataBlock.jetEffect` is `null`
+  rather than `undefined` when absent.
+- `SimVoiceStreamEventData` now reflects the binary's wire format
+  (`sequence`, `codecId`, `streamId`, `clientId`, `partial`, `frameCount`,
+  `audioData` or `frames`).
+- A `SimDataBlockEvent` with no parser (or whose payload fails) now fails the
+  event (and the packet) instead of returning silently misaligned.
+- Parsed-data types are now type aliases without index signatures; property
+  access on them is checked.
+- `getAllGhosts()`, `getGhostCatalog()`, and `getDataBlockDataMap()` return
+  read-only maps; `getCompressionPoint()` returns a copy.
+- `ShapeBase` ghosts' `readPacketData` reads energy + recharge only (it was
+  bound to the Vehicle reader).
 
 ## Supported classes
 

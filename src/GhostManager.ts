@@ -1,3 +1,4 @@
+import createDebug from "debug";
 import type { BitStream } from "./BitStream.js";
 import type {
   ClassRegistry,
@@ -14,6 +15,8 @@ import type {
   ShapeBaseGhostData,
   PlayerGhostData,
   PlayerPacketData,
+  ShapeBasePacketData,
+  TurretPacketData,
   VehicleGhostData,
   VehiclePacketData,
   WheeledVehicleGhostData,
@@ -65,6 +68,8 @@ import type {
 } from "./ghostDataTypes.js";
 import { MaxTriggerKeys } from "./types.js";
 
+const debugTracker = createDebug("t2-demo-parser:ghost-tracker");
+
 // ============================================================
 // Ghost Tracker — tracks ghost lifecycle (create/update/delete)
 // ============================================================
@@ -80,8 +85,25 @@ export class GhostTracker implements GhostTrackerInterface {
     return this.ghosts.has(index);
   }
 
+  /**
+   * Record a ghost at `index`. Re-creating an occupied index is normal
+   * (the server recycles slots after a delete we may not have seen), but
+   * a class change is logged since it is the earliest sign of a tracker
+   * that has drifted from the server.
+   */
   createGhost(index: number, classId: number, className: string): GhostEntry {
-    const entry: GhostEntry = { classId, className, state: {} };
+    const existing = this.ghosts.get(index);
+    if (existing && existing.classId !== classId) {
+      debugTracker(
+        "ghost %d re-created as %s (classId %d), was %s (classId %d)",
+        index,
+        className,
+        classId,
+        existing.className,
+        existing.classId,
+      );
+    }
+    const entry: GhostEntry = { classId, className };
     this.ghosts.set(index, entry);
     return entry;
   }
@@ -90,7 +112,7 @@ export class GhostTracker implements GhostTrackerInterface {
     this.ghosts.delete(index);
   }
 
-  getAllGhosts(): Map<number, GhostEntry> {
+  getAllGhosts(): ReadonlyMap<number, GhostEntry> {
     return this.ghosts;
   }
 
@@ -144,6 +166,25 @@ function readPackedColorF(bs: BitStream): {
  * Tribes 2 object/datablock references are serialized via FUN_00436ce0/FUN_00436d10
  * as raw 11-bit object ids (nextPow2(0x800) -> bitCount 11).
  */
+/**
+ * Ghost index reference written with GhostIdBitSize (10) bits, e.g.
+ * Player mount object, Item collision object, projectile source object
+ * in classes that call writeInt(idx, 10) directly.
+ */
+function readGhostRef10(bs: BitStream): number {
+  return bs.readInt(10);
+}
+
+/**
+ * Source object + image slot pair written via writeRangedU32(0, 1024)
+ * (11 bits, resolveGhost-style) and writeRangedU32(0, 7) (3 bits).
+ */
+function readSourceObjectSlot(
+  bs: BitStream,
+): { sourceObject: number; sourceSlot: number } {
+  return { sourceObject: readObjectRef11(bs), sourceSlot: bs.readInt(3) };
+}
+
 function readObjectRef11(bs: BitStream): number {
   return bs.readInt(11);
 }
@@ -346,7 +387,7 @@ function readShapeBaseUpdate(
   if (bs.readFlag()) {
     if (bs.readFlag()) {
       // Mounting
-      result.mountObject = bs.readInt(10);
+      result.mountObject = readGhostRef10(bs);
       result.mountNode = bs.readInt(5); // NumMountPointBits=5
     } else {
       result.mountObject = -1; // Unmounting
@@ -459,19 +500,11 @@ function playerReadPacketData(
 
   if (bs.readFlag()) {
     // Not mounted — read full position/velocity
-    const pos = {
-      x: bs.readF32(),
-      y: bs.readF32(),
-      z: bs.readF32(),
-    };
+    const pos = bs.readPoint3F();
     result.position = pos;
     // Update compression point (this IS the compression point)
     conn.compressionPoint = pos;
-    result.velocity = {
-      x: bs.readF32(),
-      y: bs.readF32(),
-      z: bs.readF32(),
-    };
+    result.velocity = bs.readPoint3F();
     result.jumpSurfaceLastContact = bs.readInt(4);
   }
 
@@ -482,21 +515,26 @@ function playerReadPacketData(
   if (bs.readFlag()) {
     // Has control object (e.g., vehicle being piloted)
     // Binary FUN_005dab20: readInt(10) + resolveGhost + obj->readPacketData(conn, stream)
-    const controlGhostIndex = bs.readInt(10);
+    const controlGhostIndex = readGhostRef10(bs);
     result.controlObjectGhost = controlGhostIndex;
 
-    // Recursively call the control object's readPacketData.
-    // Look up the ghost class and find its readPacketData parser.
+    // Recursively call the control object's readPacketData. The engine
+    // resolves the ghost and calls its virtual readPacketData with no
+    // fallback; if we cannot do the same the rest of the packet is
+    // unreadable, so fail loudly rather than continue misaligned.
     const controlGhost = conn.ghostTracker.getGhost(controlGhostIndex);
-    const controlParser = controlGhost
-      ? conn.getGhostParser?.(controlGhost.classId)
-      : undefined;
-    if (controlParser?.readPacketData) {
-      const prevGhostIndex = conn.currentGhostIndex;
-      conn.currentGhostIndex = controlGhostIndex;
-      result.controlObjectData = controlParser.readPacketData(bs, conn);
-      conn.currentGhostIndex = prevGhostIndex;
+    if (!controlGhost) {
+      throw new Error(
+        `Player readPacketData: piloted ghost ${controlGhostIndex} is not tracked`,
+      );
     }
+    const controlParser = conn.getGhostParser?.(controlGhost.classId);
+    if (!controlParser?.readPacketData) {
+      throw new Error(
+        `Player readPacketData: piloted ghost ${controlGhostIndex} (${controlGhost.className}) has no readPacketData parser`,
+      );
+    }
+    result.controlObjectData = controlParser.readPacketData(bs, conn);
   }
 
   result.disableMove = bs.readFlag();
@@ -521,7 +559,6 @@ function vehicleUnpackUpdate(
   // Control object shortcut — server writes true and returns early,
   // meaning no further Vehicle data follows in the stream.
   if (bs.readFlag()) {
-    result._controlledEarlyReturn = true;
     return result;
   }
 
@@ -555,6 +592,49 @@ function vehicleUnpackUpdate(
   return result;
 }
 
+/**
+ * ShapeBase::readPacketData (FUN_005ee9f0): GameBase (empty) + energy
+ * level (F32, via setEnergyLevel) + recharge rate (F32).
+ */
+function shapeBaseReadPacketData(
+  bs: BitStream,
+  _conn: ConnectionContext,
+): ShapeBasePacketData {
+  return {
+    energyLevel: bs.readF32(),
+    rechargeRate: bs.readF32(),
+  };
+}
+
+/**
+ * GameBase::readPacketData (FUN_005e32c0) is empty. Every GameBase-derived
+ * class that does not override it reads nothing when it is the control
+ * object.
+ */
+function gameBaseReadPacketData(
+  _bs: BitStream,
+  _conn: ConnectionContext,
+): Record<string, never> {
+  return {};
+}
+
+/**
+ * Turret::readPacketData (FUN_00655d70): ShapeBase::readPacketData, then a
+ * ranged 0..4 state (getBinLog2(getNextPow2(5)) = 3 bits) and three F32s
+ * that the engine copies into its current barrel-rotation state.
+ */
+function turretReadPacketData(
+  bs: BitStream,
+  conn: ConnectionContext,
+): TurretPacketData {
+  const base = shapeBaseReadPacketData(bs, conn);
+  return {
+    ...base,
+    turretState: bs.readRangedU32(0, 4),
+    rotationValues: [bs.readF32(), bs.readF32(), bs.readF32()],
+  };
+}
+
 function vehicleReadPacketData(
   bs: BitStream,
   conn: ConnectionContext,
@@ -567,7 +647,7 @@ function vehicleReadPacketData(
 
   // Vehicle-specific rigid body state
   result.steering = { x: bs.readF32(), y: bs.readF32() };
-  const linPos = { x: bs.readF32(), y: bs.readF32(), z: bs.readF32() };
+  const linPos = bs.readPoint3F();
   result.linPosition = linPos;
   result.angPosition = {
     x: bs.readF32(),
@@ -672,7 +752,7 @@ function itemUnpackUpdate(
 
   // ThrowSrcMask
   if (bs.readFlag()) {
-    result.collisionObject = bs.readInt(10);
+    result.collisionObject = readGhostRef10(bs);
   }
 
   // RotationMask (only if !rotate)
@@ -842,13 +922,12 @@ function debrisUnpackUpdate(
   result.string0 = bs.readString();
   result.string1 = bs.readString();
 
-  // 3 conditional object references
+  // 3 conditional object references (-1 when absent)
   const refs: number[] = [];
-  for (let i = 0; i < 2; i++) {
+  for (let i = 0; i < 3; i++) {
     refs.push(bs.readFlag() ? readObjectRef11(bs) : -1);
   }
   result.objectRefs = refs;
-  result.objectRef2 = bs.readFlag() ? readObjectRef11(bs) : -1;
 
   return result;
 }
@@ -872,32 +951,27 @@ function bombProjectileUnpackUpdate(
   _conn: ConnectionContext,
 ): BombProjectileGhostData {
   // BombProjectile vtable +0x4c -> FUN_00636050.
-  const result: BombProjectileGhostData = {};
-
-  // Parent GameBase::unpackUpdate
-  if (bs.readFlag()) {
-    result.dataBlockId = readObjectRef11(bs);
-  }
-  if (bs.readFlag()) {
-    const hasTargetId = bs.readFlag();
-    result.targetId = hasTargetId ? bs.readInt(9) : -1;
-  }
+  const result: BombProjectileGhostData = readGameBaseUpdate(
+    bs,
+    _isInitial,
+    _conn,
+  );
 
   if (!bs.readFlag()) {
     if (bs.readFlag()) {
-      result.position = { x: bs.readF32(), y: bs.readF32(), z: bs.readF32() };
-      result.velocity = { x: bs.readF32(), y: bs.readF32(), z: bs.readF32() };
+      result.position = bs.readPoint3F();
+      result.velocity = bs.readPoint3F();
     }
     if (!bs.readFlag()) {
       return result;
     }
-    result.endPoint = { x: bs.readF32(), y: bs.readF32(), z: bs.readF32() };
-    result.endNormal = { x: bs.readF32(), y: bs.readF32(), z: bs.readF32() };
+    result.endPoint = bs.readPoint3F();
+    result.endNormal = bs.readPoint3F();
     return result;
   }
 
-  result.position = { x: bs.readF32(), y: bs.readF32(), z: bs.readF32() };
-  result.velocity = { x: bs.readF32(), y: bs.readF32(), z: bs.readF32() };
+  result.position = bs.readPoint3F();
+  result.velocity = bs.readPoint3F();
   result.currTick = bs.readInt(12); // nextPow2(0x1000) -> 12 bits
 
   if (bs.readFlag()) {
@@ -905,24 +979,21 @@ function bombProjectileUnpackUpdate(
   }
 
   if (bs.readFlag()) {
-    result.explodePoint = { x: bs.readF32(), y: bs.readF32(), z: bs.readF32() };
-    result.explodeNormal = {
-      x: bs.readF32(),
-      y: bs.readF32(),
-      z: bs.readF32(),
-    };
+    result.explodePoint = bs.readPoint3F();
+    result.explodeNormal = bs.readPoint3F();
   }
 
   if (bs.readFlag()) {
-    result.sourceObject = bs.readInt(11); // nextPow2(0x401) -> 11 bits
-    result.sourceSlot = bs.readInt(3); // nextPow2(8) -> 3 bits
+    // nextPow2(0x401) -> 11 bits, nextPow2(8) -> 3 bits
+    ({ sourceObject: result.sourceObject, sourceSlot: result.sourceSlot } =
+      readSourceObjectSlot(bs));
   } else {
     result.sourceObject = -1;
     result.sourceSlot = -1;
   }
 
   if (bs.readFlag()) {
-    result.vehicleObject = bs.readInt(11); // nextPow2(0x401) -> 11 bits
+    result.vehicleObject = readObjectRef11(bs); // nextPow2(0x401) -> 11 bits
   } else {
     result.vehicleObject = 0;
   }
@@ -953,11 +1024,11 @@ function grenadeUnpackUpdate(
       result.explodeNormal = bs.readPoint3F();
     }
     if (bs.readFlag()) {
-      result.sourceObject = bs.readRangedU32(0, 1024);
-      result.sourceSlot = bs.readRangedU32(0, 7);
+      ({ sourceObject: result.sourceObject, sourceSlot: result.sourceSlot } =
+        readSourceObjectSlot(bs));
     }
     if (bs.readFlag()) {
-      result.vehicleObject = bs.readRangedU32(0, 1024);
+      result.vehicleObject = readObjectRef11(bs); // writeRangedU32(0, 1024)
     }
   } else {
     // Non-initial
@@ -995,35 +1066,23 @@ function seekerUnpackUpdate(
     const isExplosion = bs.readFlag();
     if (isExplosion) {
       // FUN_00639370: explode(position, normal) — SeekerProjectile detonation.
-      result.explodePosition = {
-        x: bs.readF32(),
-        y: bs.readF32(),
-        z: bs.readF32(),
-      };
-      result.explodeNormal = {
-        x: bs.readF32(),
-        y: bs.readF32(),
-        z: bs.readF32(),
-      };
+      result.explodePosition = bs.readPoint3F();
+      result.explodeNormal = bs.readPoint3F();
       return result;
     }
 
-    result.position = { x: bs.readF32(), y: bs.readF32(), z: bs.readF32() };
-    result.velocity = { x: bs.readF32(), y: bs.readF32(), z: bs.readF32() };
+    result.position = bs.readPoint3F();
+    result.velocity = bs.readPoint3F();
 
     const hasTargetInfo = bs.readFlag();
     if (hasTargetInfo) {
       const hasTargetGhost = bs.readFlag();
       if (!hasTargetGhost) {
-        result.targetDirection = {
-          x: bs.readF32(),
-          y: bs.readF32(),
-          z: bs.readF32(),
-        };
+        result.targetDirection = bs.readPoint3F();
         result.targetMode = 1;
       } else {
         // getBitCount(getNextPow2(0x401)) -> 11 bits
-        result.targetGhost = bs.readInt(11);
+        result.targetGhost = readObjectRef11(bs);
         result.targetMode = 0;
       }
     } else {
@@ -1034,14 +1093,15 @@ function seekerUnpackUpdate(
   }
 
   // 0x0063c010 full-state path
-  result.position = { x: bs.readF32(), y: bs.readF32(), z: bs.readF32() };
-  result.velocity = { x: bs.readF32(), y: bs.readF32(), z: bs.readF32() };
-  result.orientation = { x: bs.readF32(), y: bs.readF32(), z: bs.readF32() };
+  result.position = bs.readPoint3F();
+  result.velocity = bs.readPoint3F();
+  result.orientation = bs.readPoint3F();
 
   // Optional source object + slot
   if (bs.readFlag()) {
-    result.sourceObject = bs.readInt(11); // getBitCount(getNextPow2(0x401))
-    result.sourceSlot = bs.readInt(3); // getBitCount(getNextPow2(8))
+    // getBitCount(getNextPow2(0x401)) = 11, getBitCount(getNextPow2(8)) = 3
+    ({ sourceObject: result.sourceObject, sourceSlot: result.sourceSlot } =
+      readSourceObjectSlot(bs));
   } else {
     result.sourceObject = -1;
     result.sourceSlot = -1;
@@ -1051,14 +1111,10 @@ function seekerUnpackUpdate(
   if (bs.readFlag()) {
     const hasTargetGhost = bs.readFlag();
     if (!hasTargetGhost) {
-      result.targetDirection = {
-        x: bs.readF32(),
-        y: bs.readF32(),
-        z: bs.readF32(),
-      };
+      result.targetDirection = bs.readPoint3F();
       result.targetMode = 1;
     } else {
-      result.targetGhost = bs.readInt(11); // getBitCount(getNextPow2(0x401))
+      result.targetGhost = readObjectRef11(bs); // getBitCount(getNextPow2(0x401))
       result.targetMode = 0;
     }
   } else {
@@ -1207,11 +1263,7 @@ function cameraReadPacketData(
   result.energyLevel = bs.readF32();
   result.rechargeRate = bs.readF32();
 
-  const pos = {
-    x: bs.readF32(),
-    y: bs.readF32(),
-    z: bs.readF32(),
-  };
+  const pos = bs.readPoint3F();
   result.position = pos;
   result.rotX = bs.readF32();
   result.rotZ = bs.readF32();
@@ -1229,7 +1281,7 @@ function cameraReadPacketData(
     // OrbitObjectMode: observing flag + always-read 10-bit target ghost index.
     if (cameraMode === 3) {
       result.observingClientObject = bs.readFlag();
-      result.orbitObjectGhostIndex = bs.readInt(10);
+      result.orbitObjectGhostIndex = readGhostRef10(bs);
     }
 
     // OrbitPointMode: NetConnection::readCompressed using current compression point.
@@ -1275,7 +1327,7 @@ function linearProjectileUnpackUpdate(
       result.direction = bs.readNormalVector(14); // binary: 0xe
       result.currTick = bs.readRangedU32(0, 511); // nextPow2(0x200)=9 bits
       if (bs.readFlag()) {
-        result.sourceObject = bs.readInt(10); // nextPow2(0x400)=10 bits
+        result.sourceObject = readGhostRef10(bs); // nextPow2(0x400)=10 bits
         result.sourceSlot = bs.readRangedU32(0, 7); // nextPow2(8)=3 bits
         if (bs.readFlag()) {
           result.excessVel = bs.readRangedU32(0, 255); // nextPow2(0x100)=8 bits
@@ -1283,7 +1335,7 @@ function linearProjectileUnpackUpdate(
         }
       }
       if (bs.readFlag()) {
-        result.vehicleObject = bs.readInt(10); // nextPow2(0x400)=10 bits
+        result.vehicleObject = readGhostRef10(bs); // nextPow2(0x400)=10 bits
       }
     }
   } else {
@@ -1314,9 +1366,9 @@ function elfProjectileUnpackUpdate(
 
   if (bs.readFlag()) {
     if (bs.readFlag()) {
-      result.sourceObject = bs.readRangedU32(0, 1024);
-      result.sourceSlot = bs.readRangedU32(0, 7);
-      result.targetObject = bs.readRangedU32(0, 1024);
+      ({ sourceObject: result.sourceObject, sourceSlot: result.sourceSlot } =
+        readSourceObjectSlot(bs));
+      result.targetObject = readObjectRef11(bs); // writeRangedU32(0, 1024)
     }
   }
 
@@ -1342,9 +1394,9 @@ function repairProjectileUnpackUpdate(
   if (bs.readFlag()) {
     // InitialUpdateMask
     if (bs.readFlag()) {
-      result.sourceObject = bs.readRangedU32(0, 1024);
-      result.sourceSlot = bs.readRangedU32(0, 7);
-      result.repairingObject = bs.readRangedU32(0, 1024);
+      ({ sourceObject: result.sourceObject, sourceSlot: result.sourceSlot } =
+        readSourceObjectSlot(bs));
+      result.repairingObject = readObjectRef11(bs); // writeRangedU32(0, 1024)
     }
   }
   // Non-initial update: no data
@@ -1374,24 +1426,35 @@ function targetProjectileUnpackUpdate(
     result.endPos = bs.readPoint3F();
     result.truncated = bs.readFlag();
     if (bs.readFlag()) {
-      result.sourceObject = bs.readRangedU32(0, 1024);
-      result.sourceSlot = bs.readRangedU32(0, 7);
+      ({ sourceObject: result.sourceObject, sourceSlot: result.sourceSlot } =
+        readSourceObjectSlot(bs));
       result.clientOwned = bs.readFlag();
     }
   } else {
-    // Swing update
-    if (bs.readFlag()) {
-      result.sourceObject = bs.readRangedU32(0, 1024);
-      result.sourceSlot = bs.readRangedU32(0, 7);
-      result.clientOwned = bs.readFlag();
-    } else {
-      result.initialPosition = bs.readPoint3F();
-    }
-    result.endPos = bs.readPoint3F();
-    result.truncated = bs.readFlag();
+    readBeamProjectileSwing(bs, result);
   }
 
   return result;
+}
+
+/**
+ * Non-initial update shared by TargetProjectile and SniperProjectile:
+ * either a source object/slot pair or a fresh start point, then the end
+ * point and truncation flag.
+ */
+function readBeamProjectileSwing(
+  bs: BitStream,
+  result: TargetProjectileGhostData,
+): void {
+  if (bs.readFlag()) {
+    ({ sourceObject: result.sourceObject, sourceSlot: result.sourceSlot } =
+      readSourceObjectSlot(bs));
+    result.clientOwned = bs.readFlag();
+  } else {
+    result.initialPosition = bs.readPoint3F();
+  }
+  result.endPos = bs.readPoint3F();
+  result.truncated = bs.readFlag();
 }
 
 // ============================================================
@@ -1457,15 +1520,15 @@ function spawnSphereUnpackUpdate(
 
 function forceFieldBareUnpackUpdate(
   bs: BitStream,
-  _isInitial: boolean,
-  _conn: ConnectionContext,
+  isInitial: boolean,
+  conn: ConnectionContext,
 ): ForceFieldBareGhostData {
   // ForceFieldBare::unpackUpdate (FUN_00676d30):
   // GameBase parent, then two-level transform flags, then StateChangeMask.
   const result: ForceFieldBareGhostData = readGameBaseUpdate(
     bs,
-    _isInitial,
-    _conn,
+    isInitial,
+    conn,
   );
 
   // InitialUpdateMask flag — if true, reads transform+scale (initial path)
@@ -1522,6 +1585,21 @@ function tsStaticUnpackUpdate(
 // TerrainBlock ghost parser
 // ============================================================
 
+/** U32 count + count × U32. The count is only trusted if that many
+ *  words can still fit in the stream (a corrupt count would otherwise
+ *  spin until memory runs out, since exhausted reads return 0). */
+function readEmptySquareRuns(bs: BitStream): number[] {
+  const size = bs.readU32();
+  if (size > bs.getRemainingBits() / 32) {
+    throw new Error(`Invalid TerrainBlock emptySquareRun count: ${size}`);
+  }
+  const runs: number[] = [];
+  for (let i = 0; i < size; i++) {
+    runs.push(bs.readU32());
+  }
+  return runs;
+}
+
 function terrainBlockUnpackUpdate(
   bs: BitStream,
   _isInitial: boolean,
@@ -1543,24 +1621,16 @@ function terrainBlockUnpackUpdate(
     result.detailTextureName = bs.readString();
     result.squareSize = bs.readU32();
 
-    const size = bs.readU32();
-    const emptySquareRuns: number[] = [];
-    for (let i = 0; i < size; i++) {
-      emptySquareRuns.push(bs.readU32());
-    }
-    result.emptySquareRuns = emptySquareRuns;
-    result.emptySquareRunCount = size;
+    const runs = readEmptySquareRuns(bs);
+    result.emptySquareRuns = runs;
+    result.emptySquareRunCount = runs.length;
   } else {
     // Normal update
     if (bs.readFlag()) {
       // EmptyMask
-      const size = bs.readU32();
-      const emptySquareRuns: number[] = [];
-      for (let i = 0; i < size; i++) {
-        emptySquareRuns.push(bs.readU32());
-      }
-      result.emptySquareRuns = emptySquareRuns;
-      result.emptySquareRunCount = size;
+      const runs = readEmptySquareRuns(bs);
+      result.emptySquareRuns = runs;
+      result.emptySquareRunCount = runs.length;
     }
   }
 
@@ -2021,21 +2091,12 @@ function sniperProjectileUnpackUpdate(
     result.truncated = bs.readFlag();
     result.hitWater = bs.readFlag();
     if (bs.readFlag()) {
-      result.sourceObject = bs.readRangedU32(0, 1024);
-      result.sourceSlot = bs.readRangedU32(0, 7);
+      ({ sourceObject: result.sourceObject, sourceSlot: result.sourceSlot } =
+        readSourceObjectSlot(bs));
       result.clientOwned = bs.readFlag();
     }
   } else {
-    // Swing update
-    if (bs.readFlag()) {
-      result.sourceObject = bs.readRangedU32(0, 1024);
-      result.sourceSlot = bs.readRangedU32(0, 7);
-      result.clientOwned = bs.readFlag();
-    } else {
-      result.initialPosition = bs.readPoint3F();
-    }
-    result.endPos = bs.readPoint3F();
-    result.truncated = bs.readFlag();
+    readBeamProjectileSwing(bs, result);
   }
 
   return result;
@@ -2059,7 +2120,7 @@ function shockLanceProjectileUnpackUpdate(
 
   // Target (always written)
   if (bs.readFlag()) {
-    result.targetObject = bs.readRangedU32(0, 1024);
+    result.targetObject = readObjectRef11(bs); // writeRangedU32(0, 1024)
   }
 
   // Initial update
@@ -2068,8 +2129,8 @@ function shockLanceProjectileUnpackUpdate(
     result.end = bs.readPoint3F();
     result.hitObject = bs.readFlag();
     if (bs.readFlag()) {
-      result.sourceObject = bs.readRangedU32(0, 1024);
-      result.sourceSlot = bs.readRangedU32(0, 7);
+      ({ sourceObject: result.sourceObject, sourceSlot: result.sourceSlot } =
+        readSourceObjectSlot(bs));
     }
   }
 
@@ -2352,7 +2413,7 @@ function stationFXPersonalUnpackUpdate(
   if (bs.readFlag()) {
     // InitialUpdateMask
     if (bs.readFlag()) {
-      result.stationObject = bs.readRangedU32(0, 1024);
+      result.stationObject = readObjectRef11(bs); // writeRangedU32(0, 1024)
     }
   }
 
@@ -2420,7 +2481,7 @@ export function registerGhostParsers(registry: ClassRegistry): void {
   registry.catalogGhost({
     name: "ShapeBase",
     unpackUpdate: readShapeBaseUpdate,
-    readPacketData: vehicleReadPacketData,
+    readPacketData: shapeBaseReadPacketData,
   });
 
   registry.catalogGhost({
@@ -2489,6 +2550,7 @@ export function registerGhostParsers(registry: ClassRegistry): void {
   registry.catalogGhost({
     name: "Turret",
     unpackUpdate: turretUnpackUpdate,
+    readPacketData: turretReadPacketData,
   });
 
   registry.catalogGhost({
@@ -2665,4 +2727,69 @@ export function registerGhostParsers(registry: ClassRegistry): void {
     name: "StationFXVehicle",
     unpackUpdate: stationFXPersonalUnpackUpdate,
   });
+
+  applyInheritedReadPacketData(registry);
+}
+
+/**
+ * Ghost classes that inherit readPacketData rather than overriding it, from
+ * the build 25034 vtables (slot +0x108) cross-checked against the V12
+ * class hierarchy. The engine dispatches virtually, so a StaticShape used
+ * as the control object reads ShapeBase's two floats and a Trigger reads
+ * nothing. Classes absent from both lists are not GameBase-derived and
+ * have no readPacketData at all.
+ */
+const SHAPEBASE_READ_PACKET_DATA_HEIRS = [
+  "AIObjective",
+  "BeaconObject",
+  "Item",
+  "MissionMarker",
+  "ScopeAlwaysShape",
+  "SpawnSphere",
+  "StaticShape",
+  "WayPoint",
+];
+const GAMEBASE_READ_PACKET_DATA_HEIRS = [
+  "BombProjectile",
+  "Debris",
+  "ELFProjectile",
+  "EnergyProjectile",
+  "FireballAtmosphere",
+  "FlareProjectile",
+  "ForceFieldBare",
+  "GameBase",
+  "GrenadeProjectile",
+  "Lightning",
+  "LinearFlareProjectile",
+  "LinearProjectile",
+  "ParticleEmissionDummy",
+  "Precipitation",
+  "Projectile",
+  "RepairProjectile",
+  "SeekerProjectile",
+  "ShockLanceProjectile",
+  "Shockwave",
+  "SniperProjectile",
+  "Splash",
+  "StationFXPersonal",
+  "StationFXVehicle",
+  "TargetProjectile",
+  "TracerProjectile",
+  "Trigger",
+];
+
+function applyInheritedReadPacketData(registry: ClassRegistry): void {
+  const catalog = registry.getGhostCatalog();
+  for (const name of SHAPEBASE_READ_PACKET_DATA_HEIRS) {
+    const entry = catalog.get(name);
+    if (entry && !entry.readPacketData) {
+      entry.readPacketData = shapeBaseReadPacketData;
+    }
+  }
+  for (const name of GAMEBASE_READ_PACKET_DATA_HEIRS) {
+    const entry = catalog.get(name);
+    if (entry && !entry.readPacketData) {
+      entry.readPacketData = gameBaseReadPacketData;
+    }
+  }
 }

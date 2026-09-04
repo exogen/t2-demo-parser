@@ -1,80 +1,77 @@
 import type { Vec3, Quat } from "./dataTypes.js";
 
-export interface EventData {
+export type EventData = {
   type: string;
-  [key: string]: unknown;
-}
+};
 
-export interface SimDataBlockEventData extends EventData {
+export type SimDataBlockEventData = EventData & {
   type: "SimDataBlockEvent";
   mProcess?: boolean;
   objectId?: number;
   classId?: number;
   index?: number;
   total?: number;
-  _payloadBitPos?: number;
   dataBlockData?: Record<string, unknown>;
   dataBlockClassName?: string;
-  _needsClassParser?: boolean;
-}
+};
 
-export interface NetStringEventData extends EventData {
+export type NetStringEventData = EventData & {
   type: "NetStringEvent";
   id: number;
   hasValue: boolean;
   value?: string;
-}
+};
 
-export interface Sim2DAudioEventData extends EventData {
+export type Sim2DAudioEventData = EventData & {
   type: "Sim2DAudioEvent";
   profileId: number;
-}
+};
 
-export interface Sim3DAudioEventData extends EventData {
+export type Sim3DAudioEventData = EventData & {
   type: "Sim3DAudioEvent";
   profileId: number;
   rotation?: Quat;
   position: Vec3;
-}
+};
 
-export interface SetSensorGroupEventData extends EventData {
+export type SetSensorGroupEventData = EventData & {
   type: "SetSensorGroupEvent";
   sensorGroup: number;
-}
+};
 
-export interface SetServerTargetEventData extends EventData {
+export type SetServerTargetEventData = EventData & {
   type: "SetServerTargetEvent";
   targetId?: number;
   targetPos: Vec3;
-}
+};
 
-export interface TargetToEventData extends EventData {
+export type TargetToEventData = EventData & {
   type: "TargetToEvent";
   targetId?: number;
   targetPos?: Vec3;
   assign: boolean;
-}
+};
 
-export interface SetObjectActiveImageEventData extends EventData {
+export type SetObjectActiveImageEventData = EventData & {
   type: "SetObjectActiveImageEvent";
   objectId: number;
   imageSlot: number;
-}
+};
 
-export interface SetMissionCRCEventData extends EventData {
+export type SetMissionCRCEventData = EventData & {
   type: "SetMissionCRCEvent";
   crc: number;
-}
+};
 
-export interface RemoteCommandEventData extends EventData {
+export type RemoteCommandEventData = EventData & {
   type: "RemoteCommandEvent";
   argc: number;
   argv: string[];
   funcName: string;
   args: string[];
-}
+};
 
-export interface TargetInfoEventData extends EventData {
+export type TargetInfoEventData = EventData & {
   type: "TargetInfoEvent";
   targetId: number;
   nameTag?: number;
@@ -86,148 +83,153 @@ export interface TargetInfoEventData extends EventData {
   dataBlockId?: number;
   renderFlags?: number;
   voicePitch?: number;
-}
+};
 
-export interface TargetFreeEventData extends EventData {
+export type TargetFreeEventData = EventData & {
   type: "TargetFreeEvent";
   targetId: number;
-}
+};
 
-export interface SimTargetAudioEventData extends EventData {
+export type SimTargetAudioEventData = EventData & {
   type: "SimTargetAudioEvent";
   targetId: number;
   fileTag: number;
   descriptionId: number;
   position?: Vec3;
   updateSound: boolean;
-}
+};
 
-export interface SensorGroupColorEntry {
+export type SensorGroupColorEntry = {
   index: number;
   r?: number;
   g?: number;
   b?: number;
   a?: number;
   default?: boolean;
-}
+};
 
-export interface SensorGroupColorEventData extends EventData {
+export type SensorGroupColorEventData = EventData & {
   type: "SensorGroupColorEvent";
   sensorGroup: number;
   updateMask: number;
   colors: SensorGroupColorEntry[];
-}
+};
 
-export interface ResetClientTargetsEventData extends EventData {
+export type ResetClientTargetsEventData = EventData & {
   type: "ResetClientTargetsEvent";
   clientTargetsOnly: boolean;
-}
+};
 
-export interface RemoveClientTargetTypeEventData extends EventData {
+export type RemoveClientTargetTypeEventData = EventData & {
   type: "RemoveClientTargetTypeEvent";
   targetType: number;
-}
+};
 
-export interface SimVoiceStreamEventData extends EventData {
+export type SimVoiceStreamEventData = EventData & {
   type: "SimVoiceStreamEvent";
   streamId: number;
   sequence: number;
+  /** Index into the binary's voice codec table (0–3). */
   codecId: number;
   clientId: number;
-  objectId?: number;
-  size: number;
+  /** True when the packet carries an explicit frame count (end of stream). */
+  partial: boolean;
+  frameCount: number;
+  /** Fixed-size codec frames, concatenated (codecs 1–3). */
   audioData?: Uint8Array;
-}
+  /** Nibble-packed frames, one buffer per frame (codec 0). */
+  frames?: Uint8Array[];
+};
 
-export interface GhostingMessageEventData extends EventData {
+export type GhostingMessageEventData = EventData & {
   type: "GhostingMessageEvent";
   sequence: number;
   message: number;
   ghostCount: number;
-}
+};
 
-export interface GhostAlwaysObjectEventData extends EventData {
+export type GhostAlwaysObjectEventData = EventData & {
   type: "GhostAlwaysObjectEvent";
   ghostIndex: number;
-  _hasObjectData: boolean;
+  hasObjectData: boolean;
   classId?: number;
   objectData?: Record<string, unknown>;
-}
+};
 
-export interface PathPoint {
+export type PathPoint = {
   position: Vec3;
   rotation?: Quat;
   speed?: number;
   msToNext: number;
   smoothingType?: number;
-}
+};
 
-export interface PathData {
+export type PathData = {
   totalTime: number;
   points: PathPoint[];
-}
+};
 
-export interface PathManagerEventData extends EventData {
+export type PathManagerEventData = EventData & {
   type: "PathManagerEvent";
   messageType: string;
   paths?: PathData[];
   modifiedPath?: number;
   path?: PathData;
-}
+};
 
-export interface LightningStrikeEventData extends EventData {
+export type LightningStrikeEventData = EventData & {
   type: "LightningStrikeEvent";
   sourceGhost?: number;
   startX?: number;
   startY?: number;
   targetGhost?: number;
-}
+};
 
-export interface FileChunkEventData extends EventData {
+export type FileChunkEventData = EventData & {
   type: "FileChunkEvent";
   chunkLen: number;
   chunkData: Uint8Array;
-}
+};
 
-export interface DownloadMessageEventData extends EventData {
+export type DownloadMessageEventData = EventData & {
   type: "DownloadMessageEvent";
   value: number;
   message: number;
-}
+};
 
-export interface FileDownloadRequestEventData extends EventData {
+export type FileDownloadRequestEventData = EventData & {
   type: "FileDownloadRequestEvent";
   fileNames: string[];
-}
+};
 
-export interface SimpleMessageEventData extends EventData {
+export type SimpleMessageEventData = EventData & {
   type: "SimpleMessageEvent";
   message: string;
-}
+};
 
-export interface CRCChallengeEventData extends EventData {
+export type CRCChallengeEventData = EventData & {
   type: "CRCChallengeEvent";
   crcValue: number;
   field1: number;
   field2: number;
   flag: boolean;
-}
+};
 
-export interface CRCChallengeResponseEventData extends EventData {
+export type CRCChallengeResponseEventData = EventData & {
   type: "CRCChallengeResponseEvent";
   crcValue: number;
   field1: number;
   field2: number;
-}
+};
 
-export interface GravityEventData extends EventData {
+export type GravityEventData = EventData & {
   type: "GravityEvent";
   gravity: number;
-}
+};
 
-export interface FogChallengeEventData extends EventData {
+export type FogChallengeEventData = EventData & {
   type: "FogChallengeEvent";
-}
+};
 
 export type AnyEventData =
   | SimDataBlockEventData

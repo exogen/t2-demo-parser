@@ -68,6 +68,9 @@ export class BitStream {
    */
   readInt(bitCount: number): number {
     if (bitCount === 0) return 0;
+    if (!(bitCount > 0 && bitCount <= 32)) {
+      throw new RangeError(`readInt bitCount out of range: ${bitCount}`);
+    }
     if (this.bitNum + bitCount > this.maxReadBitNum) {
       this.error = true;
       return 0;
@@ -117,26 +120,38 @@ export class BitStream {
 
   /** Read a float normalized to [0, 1]. */
   readFloat(bitCount: number): number {
-    return this.readInt(bitCount) / ((1 << bitCount) - 1);
+    return this.readInt(bitCount) / (2 ** bitCount - 1);
   }
 
   /** Read a float normalized to [-1, 1]. */
   readSignedFloat(bitCount: number): number {
-    return (this.readInt(bitCount) * 2) / ((1 << bitCount) - 1) - 1.0;
+    return (this.readInt(bitCount) * 2) / (2 ** bitCount - 1) - 1.0;
   }
 
-  /** Read a ranged unsigned 32-bit integer. */
+  /**
+   * Read a ranged unsigned 32-bit integer. Bit width is
+   * getBinLog2(getNextPow2(rangeSize)) as in the engine (FUN_0043f120 /
+   * FUN_0043f150): a range of one value reads zero bits.
+   */
   readRangedU32(rangeStart: number, rangeEnd: number): number {
     const rangeSize = rangeEnd - rangeStart + 1;
-    const rangeBits = Math.ceil(Math.log2(rangeSize)) || 1;
+    const rangeBits = Math.ceil(Math.log2(rangeSize));
     return this.readInt(rangeBits) + rangeStart;
   }
 
-  /** Read raw bits into a new Uint8Array. */
+  /**
+   * Read raw bits into a new Uint8Array. Like every other read, an
+   * over-length request sets the error flag, leaves the cursor in place,
+   * and returns zeroed bytes (the engine's BitStream::readBits).
+   */
   readBitsBuffer(bitCount: number): Uint8Array {
     if (bitCount === 0) return new Uint8Array(0);
     const byteCount = (bitCount + 7) >> 3;
     const result = new Uint8Array(byteCount);
+    if (bitCount < 0 || this.bitNum + bitCount > this.maxReadBitNum) {
+      this.error = true;
+      return result;
+    }
 
     const startByte = this.bitNum >> 3;
     const downShift = this.bitNum & 0x7;
@@ -269,9 +284,7 @@ export class BitStream {
     const qx = this.readF32();
     const qy = this.readF32();
     const qz = this.readF32();
-    let qw = Math.sqrt(
-      Math.max(0, 1.0 - (qx * qx + qy * qy + qz * qz))
-    );
+    let qw = Math.sqrt(Math.max(0, 1.0 - (qx * qx + qy * qy + qz * qz)));
     if (this.readFlag()) {
       qw = -qw;
     }
@@ -285,6 +298,8 @@ export class BitStream {
   /**
    * Read a Huffman-encoded string.
    * Handles the stringBuffer optimization (shared prefix with previous string).
+   * Each wire byte becomes one UTF-16 code unit (Latin-1 decoding); Tribes 2
+   * strings are not UTF-8, and tagged strings begin with "\x01".
    */
   readString(): string {
     if (this.stringBuffer !== null) {
@@ -309,8 +324,13 @@ export class BitStream {
     this.stringBuffer = enable ? "" : null;
   }
 
-  /** Skip N bits. */
+  /** Skip N bits. Sets the error flag (without moving) if that would
+   *  pass the end of the buffer. */
   skipBits(count: number): void {
+    if (count < 0 || this.bitNum + count > this.maxReadBitNum) {
+      this.error = true;
+      return;
+    }
     this.bitNum += count;
   }
 
@@ -326,7 +346,7 @@ export class BitStream {
    */
   readCompressedPoint(
     compressionPoint: { x: number; y: number; z: number },
-    scale: number = 0.01
+    scale: number = 0.01,
   ): { x: number; y: number; z: number } {
     const type = this.readInt(2);
     if (type === 3) {

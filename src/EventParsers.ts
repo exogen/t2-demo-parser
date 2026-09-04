@@ -62,38 +62,35 @@ function simDataBlockEventUnpack(
     };
   }
 
-  const id = bs.readInt(SimDBEventObjectIdBits) + 0;
+  const id = bs.readInt(SimDBEventObjectIdBits);
   const classId = bs.readInt(SimDBEventClassIdBits) + DataBlockClassFirst;
   const index = bs.readInt(SimDBEventIndexBits);
   const total = bs.readInt(SimDBEventTotalBits);
 
-  const result: SimDataBlockEventData = {
+  // The payload must be consumed to keep the packet aligned; with no
+  // parser (only possible for a corrupt classId — all 54 DataBlock
+  // classes are bound) the engine would fail the packet too, so throw
+  // and let readEvents mark the event failed. Parser errors propagate
+  // for the same reason.
+  // String buffer is already enabled by parsePacket() for the entire packet —
+  // do NOT toggle it here, as that would reset accumulated prefix context and
+  // then disable string buffer for the rest of the packet's events and ghosts.
+  const parser = conn.getDataBlockParser?.(classId);
+  if (!parser) {
+    throw new Error(
+      `No DataBlock parser for SimDataBlockEvent classId=${classId}`,
+    );
+  }
+  return {
     type: "SimDataBlockEvent",
     mProcess: true,
     objectId: id,
     classId,
     index,
     total,
-    _payloadBitPos: bs.getCurPos(),
+    dataBlockData: parser.unpackData(bs),
+    dataBlockClassName: parser.name,
   };
-
-  // Try to parse the DataBlock payload if we have a parser.
-  // String buffer is already enabled by parsePacket() for the entire packet —
-  // do NOT toggle it here, as that would reset accumulated prefix context and
-  // then disable string buffer for the rest of the packet's events and ghosts.
-  const parser = conn.getDataBlockParser?.(classId);
-  if (parser) {
-    try {
-      result.dataBlockData = parser.unpackData(bs);
-      result.dataBlockClassName = parser.name;
-    } catch {
-      result._needsClassParser = true;
-    }
-  } else {
-    result._needsClassParser = true;
-  }
-
-  return result;
 }
 
 // ============================================================
@@ -401,36 +398,66 @@ function removeClientTargetTypeEventUnpack(
 // SimVoiceStreamEvent — voice chat audio streaming
 // ============================================================
 
+/**
+ * Voice codec table from the binary (0x0074d6e4, 36-byte entries indexed
+ * by the 2-bit codec id). Only the fields the unpacker reads are kept:
+ * bytes per frame (+0), frames in a full packet (+4), and whether frames
+ * are nibble-packed with a per-frame 4-bit length (+0xc).
+ */
+const VoiceCodecs: readonly {
+  frameBytes: number;
+  fullPacketFrames: number;
+  nibblePacked: boolean;
+}[] = [
+  { frameBytes: 6, fullPacketFrames: 6, nibblePacked: true },
+  { frameBytes: 7, fullPacketFrames: 5, nibblePacked: false },
+  { frameBytes: 9, fullPacketFrames: 4, nibblePacked: false },
+  { frameBytes: 33, fullPacketFrames: 1, nibblePacked: false },
+];
+
 function simVoiceStreamEventUnpack(
   bs: BitStream,
   _conn: ConnectionContext
 ): SimVoiceStreamEventData {
-  const streamId = bs.readInt(5);
-  const sequence = bs.readInt(6); // SEQUENCE_BITS=6
+  // Build 25034 (FUN_0040d720, protocol >= 0x23 path — every demo and
+  // server this parser supports). This differs from the V12 source:
+  //   readInt(7) sequence, readInt(2) codecId, readInt(2) streamId,
+  //   U32 clientId (client side), then codec-dependent payload.
+  const sequence = bs.readInt(7);
   const codecId = bs.readInt(2);
-  // Server connection (demo is always client-side):
-  const clientId = bs.readU8();
+  const streamId = bs.readInt(2);
+  const clientId = bs.readU32();
+  const codec = VoiceCodecs[codecId];
   const result: SimVoiceStreamEventData = {
     type: "SimVoiceStreamEvent",
     streamId,
     sequence,
     codecId,
     clientId,
-    size: 0,
+    partial: false,
+    frameCount: 0,
   };
-  if (sequence === 0) {
-    result.objectId = bs.readInt(10); // GhostIdBitSize=10
-  }
-  // Size
-  const VOICE_PACKET_DATA_SIZE = 16; // typical value
-  if (bs.readFlag()) {
-    result.size = bs.readInt(5); // SIZE_BITS=5
+  if (codec.nibblePacked) {
+    // Flag (stored, unused by the reader), 5-bit frame count, then per
+    // frame a 4-bit nibble count and that many nibbles.
+    result.partial = bs.readFlag();
+    result.frameCount = bs.readInt(5);
+    const frames: Uint8Array[] = [];
+    for (let i = 0; i < result.frameCount; i++) {
+      const nibbles = bs.readInt(4);
+      frames.push(bs.readBitsBuffer(nibbles * 4));
+    }
+    result.frames = frames;
   } else {
-    result.size = VOICE_PACKET_DATA_SIZE;
-  }
-  // Skip the audio data bytes (mSize bytes, but first byte is lock byte so we read mSize-1)
-  if (result.size > 0) {
-    result.audioData = bs.readBitsBuffer(result.size * 8);
+    // Flag selects an explicit 5-bit frame count (end-of-stream packets)
+    // over the codec's full-packet count; then frameCount × frameBytes.
+    result.partial = bs.readFlag();
+    result.frameCount = result.partial
+      ? bs.readInt(5)
+      : codec.fullPacketFrames;
+    result.audioData = bs.readBitsBuffer(
+      result.frameCount * codec.frameBytes * 8,
+    );
   }
   return result;
 }
@@ -464,7 +491,7 @@ function ghostAlwaysObjectEventUnpack(
   const result: GhostAlwaysObjectEventData = {
     type: "GhostAlwaysObjectEvent",
     ghostIndex,
-    _hasObjectData: hasObjectData,
+    hasObjectData,
   };
 
   if (hasObjectData) {
@@ -486,39 +513,56 @@ function ghostAlwaysObjectEventUnpack(
 // PathManagerEvent — server path/patrol route updates
 // ============================================================
 
+/**
+ * Read a U32 count and reject it unless `minBitsPerEntry × count` bits
+ * remain: exhausted reads return 0 without throwing, so a corrupt count
+ * would otherwise spin allocating until memory ran out.
+ */
+function readCheckedCount(
+  bs: BitStream,
+  minBitsPerEntry: number,
+  what: string,
+): number {
+  const count = bs.readU32();
+  if (count > bs.getRemainingBits() / minBitsPerEntry) {
+    throw new Error(`Invalid ${what}: ${count}`);
+  }
+  return count;
+}
+
+function readPathPoints(bs: BitStream): PathPoint[] {
+  const numPoints = readCheckedCount(bs, 128, "PathManagerEvent numPoints");
+  const points: PathPoint[] = [];
+  for (let j = 0; j < numPoints; j++) {
+    points.push({
+      position: bs.readPoint3F(),
+      msToNext: bs.readU32(),
+    });
+  }
+  return points;
+}
+
 function pathManagerEventUnpack(
   bs: BitStream,
   _conn: ConnectionContext
 ): PathManagerEventData {
+  // pathManager.cc: counts are raw U32s with no cap; a path entry is at
+  // least 64 bits (totalTime + numPoints) and a point exactly 128, so a
+  // count that cannot fit in the remaining stream is corrupt.
   if (bs.readFlag()) {
     // NewPaths
-    const numPaths = bs.readU32();
+    const numPaths = readCheckedCount(bs, 64, "PathManagerEvent numPaths");
     const paths: PathData[] = [];
-    for (let i = 0; i < numPaths && i < 256; i++) {
+    for (let i = 0; i < numPaths; i++) {
       const totalTime = bs.readU32();
-      const numPoints = bs.readU32();
-      const points: PathPoint[] = [];
-      for (let j = 0; j < numPoints && j < 1024; j++) {
-        points.push({
-          position: bs.readPoint3F(),
-          msToNext: bs.readU32(),
-        });
-      }
-      paths.push({ totalTime, points });
+      paths.push({ totalTime, points: readPathPoints(bs) });
     }
     return { type: "PathManagerEvent", messageType: "NewPaths", paths };
   } else {
     // ModifyPath
     const modifiedPath = bs.readU32();
     const totalTime = bs.readU32();
-    const numPoints = bs.readU32();
-    const points: PathPoint[] = [];
-    for (let j = 0; j < numPoints && j < 1024; j++) {
-      points.push({
-        position: bs.readPoint3F(),
-        msToNext: bs.readU32(),
-      });
-    }
+    const points = readPathPoints(bs);
     return {
       type: "PathManagerEvent",
       messageType: "ModifyPath",

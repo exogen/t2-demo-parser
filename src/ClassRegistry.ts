@@ -36,8 +36,6 @@ export interface ConnectionContext {
   getDataBlockParser?: (classId: number) => DataBlockParserEntry | undefined;
   getDataBlockData?: (objectId: number) => ParsedData | undefined;
   getGhostParser?: (classId: number) => GhostParserEntry | undefined;
-  /** Ghost index of the ghost currently being parsed (set per-ghost in readGhosts). */
-  currentGhostIndex?: number;
 }
 
 /** Minimal interface for ghost tracker used by parsers. */
@@ -48,7 +46,6 @@ export interface GhostTrackerInterface {
 export interface GhostEntry {
   classId: number;
   className: string;
-  state: ParsedData;
 }
 
 export interface GhostParserEntry {
@@ -67,6 +64,51 @@ export interface DataBlockParserEntry {
   unpackData: DataBlockParser;
 }
 
+interface Catalog<T extends { name: string }> {
+  byName: Map<string, T>;
+  byClassId: Map<number, T>;
+  classIdByName: Map<string, number>;
+}
+
+function newCatalog<T extends { name: string }>(): Catalog<T> {
+  return { byName: new Map(), byClassId: new Map(), classIdByName: new Map() };
+}
+
+/**
+ * Bind every cataloged parser whose name appears in `classNames` to
+ * classId = classFirst + index. Names without a parser are reported.
+ */
+function bindCatalog<T extends { name: string }>(
+  catalog: Catalog<T>,
+  classNames: readonly string[],
+  classFirst: number,
+): { bound: number; missing: string[] } {
+  let bound = 0;
+  const missing: string[] = [];
+  for (let i = 0; i < classNames.length; i++) {
+    const name = classNames[i];
+    const entry = catalog.byName.get(name);
+    if (entry) {
+      catalog.byClassId.set(classFirst + i, entry);
+      catalog.classIdByName.set(name, classFirst + i);
+      bound++;
+    } else {
+      missing.push(name);
+    }
+  }
+  return { bound, missing };
+}
+
+function bindingsOf<T extends { name: string }>(
+  catalog: Catalog<T>,
+): Map<number, string> {
+  const bindings = new Map<number, string>();
+  for (const [id, entry] of catalog.byClassId) {
+    bindings.set(id, entry.name);
+  }
+  return bindings;
+}
+
 /**
  * Registry mapping classIds to parser functions.
  * ClassIds are assigned deterministically by alphabetical sort (C strcmp)
@@ -74,136 +116,119 @@ export interface DataBlockParserEntry {
  * via bindDeterministicGhosts/Events/DataBlocks.
  */
 export class ClassRegistry {
-  private eventParsers = new Map<number, EventParserEntry>();
-  private ghostParsers = new Map<number, GhostParserEntry>();
-  private dataBlockParsers = new Map<number, DataBlockParserEntry>();
-
-  // Named parser catalog (classId-independent)
-  private eventCatalog = new Map<string, EventParserEntry>();
-  private ghostCatalog = new Map<string, GhostParserEntry>();
-  private dataBlockCatalog = new Map<string, DataBlockParserEntry>();
+  private events = newCatalog<EventParserEntry>();
+  private ghosts = newCatalog<GhostParserEntry>();
+  private dataBlocks = newCatalog<DataBlockParserEntry>();
 
   // --- Catalog registration (name → parser, no classId yet) ---
+  //
+  // Parsers return precisely typed objects (PlayerGhostData, ...), which
+  // are stored behind the generic ParsedData shape. The generic signatures
+  // let each parser keep its own return type — so a misspelled field is a
+  // compile error inside the parser — while the registry erases it.
 
-  catalogEvent(entry: EventParserEntry): void {
-    this.eventCatalog.set(entry.name, entry);
+  catalogEvent<T extends EventData>(entry: {
+    name: string;
+    unpack: (bs: BitStream, conn: ConnectionContext) => T;
+  }): void {
+    this.events.byName.set(entry.name, entry);
   }
 
-  catalogGhost(entry: GhostParserEntry): void {
-    this.ghostCatalog.set(entry.name, entry);
+  catalogGhost<T extends object, P extends object = ParsedData>(entry: {
+    name: string;
+    unpackUpdate: (bs: BitStream, isInitial: boolean, conn: ConnectionContext) => T;
+    readPacketData?: (bs: BitStream, conn: ConnectionContext) => P;
+  }): void {
+    this.ghosts.byName.set(entry.name, entry as unknown as GhostParserEntry);
   }
 
-  catalogDataBlock(entry: DataBlockParserEntry): void {
-    this.dataBlockCatalog.set(entry.name, entry);
+  catalogDataBlock<T extends object>(entry: {
+    name: string;
+    unpackData: (bs: BitStream) => T;
+  }): void {
+    this.dataBlocks.byName.set(
+      entry.name,
+      entry as unknown as DataBlockParserEntry,
+    );
   }
 
-  /**
-   * Bind all DataBlock parsers deterministically using the known class name
-   * mapping. For each class name in the sorted list, if we have a parser
-   * in the catalog, bind it to classId = DataBlockClassFirst + index.
-   */
+  // --- Deterministic binding (classId = classFirst + index in the sorted
+  //     class name list) ---
+
   bindDeterministicDataBlocks(
     classNames: readonly string[],
-    classFirst: number
+    classFirst: number,
   ): { bound: number; missing: string[] } {
-    let bound = 0;
-    const missing: string[] = [];
-    for (let i = 0; i < classNames.length; i++) {
-      const name = classNames[i];
-      const entry = this.dataBlockCatalog.get(name);
-      if (entry) {
-        this.dataBlockParsers.set(classFirst + i, entry);
-        bound++;
-      } else {
-        missing.push(name);
-      }
-    }
-    return { bound, missing };
+    return bindCatalog(this.dataBlocks, classNames, classFirst);
   }
 
-  /**
-   * Bind all event (NetEvent) parsers deterministically using the known
-   * class name mapping. For each class name in the sorted list, if we have
-   * a parser in the catalog, bind it to classId = classFirst + index.
-   */
   bindDeterministicEvents(
     classNames: readonly string[],
-    classFirst: number
+    classFirst: number,
   ): { bound: number; missing: string[] } {
-    let bound = 0;
-    const missing: string[] = [];
-    for (let i = 0; i < classNames.length; i++) {
-      const name = classNames[i];
-      const entry = this.eventCatalog.get(name);
-      if (entry) {
-        this.eventParsers.set(classFirst + i, entry);
-        bound++;
-      } else {
-        missing.push(name);
-      }
-    }
-    return { bound, missing };
+    return bindCatalog(this.events, classNames, classFirst);
   }
 
-  /**
-   * Bind all ghost (NetObject) parsers deterministically using the known
-   * class name mapping. For each class name in the sorted list, if we have
-   * a parser in the catalog, bind it to classId = classFirst + index.
-   */
   bindDeterministicGhosts(
     classNames: readonly string[],
-    classFirst: number
+    classFirst: number,
   ): { bound: number; missing: string[] } {
-    let bound = 0;
-    const missing: string[] = [];
-    for (let i = 0; i < classNames.length; i++) {
-      const name = classNames[i];
-      const entry = this.ghostCatalog.get(name);
-      if (entry) {
-        this.ghostParsers.set(classFirst + i, entry);
-        bound++;
-      } else {
-        missing.push(name);
-      }
-    }
-    return { bound, missing };
+    return bindCatalog(this.ghosts, classNames, classFirst);
   }
 
-  // --- Lookup ---
+  // --- Lookup by classId ---
 
   getEventParser(classId: number): EventParserEntry | undefined {
-    return this.eventParsers.get(classId);
+    return this.events.byClassId.get(classId);
   }
 
   getGhostParser(classId: number): GhostParserEntry | undefined {
-    return this.ghostParsers.get(classId);
+    return this.ghosts.byClassId.get(classId);
   }
 
   getDataBlockParser(classId: number): DataBlockParserEntry | undefined {
-    return this.dataBlockParsers.get(classId);
+    return this.dataBlocks.byClassId.get(classId);
   }
 
-  // --- Catalog access ---
+  // --- Lookup by class name (bound classId) ---
 
-  getGhostCatalog(): Map<string, GhostParserEntry> {
-    return this.ghostCatalog;
+  getEventClassId(name: string): number | undefined {
+    return this.events.classIdByName.get(name);
   }
 
-  // --- Debug ---
+  getGhostClassId(name: string): number | undefined {
+    return this.ghosts.classIdByName.get(name);
+  }
+
+  getDataBlockClassId(name: string): number | undefined {
+    return this.dataBlocks.classIdByName.get(name);
+  }
+
+  // --- Catalog access (name → parser, independent of binding) ---
+
+  getEventCatalog(): ReadonlyMap<string, EventParserEntry> {
+    return this.events.byName;
+  }
+
+  getGhostCatalog(): ReadonlyMap<string, GhostParserEntry> {
+    return this.ghosts.byName;
+  }
+
+  getDataBlockCatalog(): ReadonlyMap<string, DataBlockParserEntry> {
+    return this.dataBlocks.byName;
+  }
+
+  // --- Debug: classId → parser name ---
 
   getEventBindings(): Map<number, string> {
-    const bindings = new Map<number, string>();
-    for (const [id, entry] of this.eventParsers) {
-      bindings.set(id, entry.name);
-    }
-    return bindings;
+    return bindingsOf(this.events);
   }
 
   getGhostBindings(): Map<number, string> {
-    const bindings = new Map<number, string>();
-    for (const [id, entry] of this.ghostParsers) {
-      bindings.set(id, entry.name);
-    }
-    return bindings;
+    return bindingsOf(this.ghosts);
+  }
+
+  getDataBlockBindings(): Map<number, string> {
+    return bindingsOf(this.dataBlocks);
   }
 }
