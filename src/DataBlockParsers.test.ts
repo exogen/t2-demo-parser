@@ -109,6 +109,12 @@ describe("projectile datablock field decoding", () => {
     expect(disc!.fizzleTimeMS).toBe(5024);
     // disc.cs: reflectOnWaterImpactAngle = 15.0.
     expect(disc!.reflectOnWaterImpactAngle).toBe(15);
+    // disc.cs: hasLight, lightRadius = 6.0, lightColor = "0.175 0.175 0.5".
+    // The radius travels as readFloat(8) × 20 (ProjectileData::unpackData
+    // FUN_00631360); the 8-bit write truncates 6/20 to 76/255.
+    expect(disc!.lightRadius).toBeCloseTo((76 / 255) * 20, 5);
+    expect(disc!.lightColor!.r).toBeCloseTo(0.175, 1);
+    expect(disc!.lightColor!.b).toBeCloseTo(0.5, 1);
   });
 
   it("decodes retail EnergyBolt (blaster) fields exactly", async () => {

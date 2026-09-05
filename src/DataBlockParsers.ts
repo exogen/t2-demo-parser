@@ -952,9 +952,12 @@ function projectileDataUnpack(bs: BitStream): ProjectileDataBlock {
   }
   result.decals = decals;
 
-  // flag(hasLight); if true: readFloat(8) + 3×readFloat(7)
+  // flag(hasLight); if true: readFloat(8) × 20 + 3×readFloat(7).
+  // ProjectileData::unpackData (FUN_00631360) multiplies the 8-bit
+  // radius by 20.0 (packData writes lightRadius / 20; the field is
+  // clamped to [1, 20] in onAdd).
   if (bs.readFlag()) {
-    result.lightRadius = bs.readFloat(8);
+    result.lightRadius = bs.readFloat(8) * 20;
     result.lightColor = {
       r: bs.readFloat(7),
       g: bs.readFloat(7),
