@@ -68,8 +68,7 @@ export type ParticleKey = {
 // Base DataBlock types
 // ---------------------------------------------------------------------------
 
-export type SimDataBlock = {
-};
+export type SimDataBlock = {};
 
 export interface GameBaseDataBlock extends SimDataBlock {}
 
@@ -603,13 +602,15 @@ export type EnergyProjectileDataBlock = GrenadeProjectileDataBlock & {
 };
 
 export type LinearFlareProjectileDataBlock = LinearProjectileDataBlock & {
+  /** Spikes kept alive around the bolt (plasma: 35). */
   numFlares?: number;
   flareColor?: Color4;
-  flareTexture?: string;
-  smokeTexture?: string;
-  size?: number;
-  flareModTexture?: number;
-  smokeSize?: number;
+  /** Billboard texture for a shapeless bolt (e.g. "flaremod"). */
+  flareModTexture?: string;
+  /** Spike texture (e.g. "flarebase"). */
+  flareBaseTexture?: string;
+  /** size[0..2]: spike base scale, and the tip scale it grows from and to. */
+  sizes?: [number, number, number];
 };
 
 export type BombProjectileDataBlock = GrenadeProjectileDataBlock & {

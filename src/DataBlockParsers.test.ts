@@ -5,6 +5,7 @@ import { DemoParser } from "./DemoParser.js";
 import type {
   ELFProjectileDataBlock,
   EnergyProjectileDataBlock,
+  LinearFlareProjectileDataBlock,
   LinearProjectileDataBlock,
   PlayerDataBlock,
   RepairProjectileDataBlock,
@@ -31,6 +32,34 @@ async function loadDataBlocks(file: string) {
  * field named `fizzleType`, breaking client-side projectile simulation.
  */
 describe("projectile datablock field decoding", () => {
+  it("decodes LinearFlareProjectileData with the engine's field names", async () => {
+    // Stock PlasmaBolt (plasma.cs): numFlares 35, size[] 0.2/0.5/0.1,
+    // flareColor "1 0.75 0.25", flareModTexture/flareBaseTexture. The old
+    // decode read numFlares as an F32 and labelled the three sizes as
+    // size/flareModTexture/smokeSize.
+    const dataBlocks = await loadDataBlocks("exogen_Katabatic_vpad.rec");
+    let plasma: LinearFlareProjectileDataBlock | undefined;
+    for (const [, db] of dataBlocks) {
+      if (
+        db.className === "LinearFlareProjectileData" &&
+        (db.data as LinearFlareProjectileDataBlock).projectileShapeName ===
+          "plasmabolt.dts"
+      ) {
+        plasma = db.data as LinearFlareProjectileDataBlock;
+      }
+    }
+    expect(plasma).toBeDefined();
+    expect(plasma!.numFlares).toBe(35);
+    expect(plasma!.sizes!.map((v) => Math.round(v * 100) / 100)).toEqual([
+      0.2, 0.5, 0.1,
+    ]);
+    expect(plasma!.flareModTexture).toBe("flaremod");
+    expect(plasma!.flareBaseTexture).toBe("flarebase");
+    expect(plasma!.flareColor!.r).toBeCloseTo(1, 2);
+    expect(plasma!.flareColor!.g).toBeCloseTo(0.75, 2);
+    expect(plasma!.flareColor!.b).toBeCloseTo(0.25, 2);
+  });
+
   it("decodes LinearProjectileData fields with engine semantics", async () => {
     const dataBlocks = await loadDataBlocks("exogen_Katabatic_vpad.rec");
     const linears: LinearProjectileDataBlock[] = [];

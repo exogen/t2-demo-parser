@@ -1348,23 +1348,23 @@ function energyProjectileDataUnpack(bs: BitStream): EnergyProjectileDataBlock {
 function linearFlareProjectileDataUnpack(
   bs: BitStream,
 ): LinearFlareProjectileDataBlock {
-  // Verified against decompiled binary FUN_0063dc80
+  // Bit layout from unpackData FUN_0063dc80; names from initPersistFields
+  // FUN_0063d870 (numFlares 0x168 S32, size[3] 0x16c F32, flareColor
+  // 0x178, flareModTexture 0x188, flareBaseTexture 0x18c).
   const result: LinearFlareProjectileDataBlock = linearProjectileDataUnpack(bs);
 
-  // F32 (offset 0x168)
-  result.numFlares = bs.readF32();
+  // S32 (offset 0x168): raw 4-byte read of an integer field.
+  result.numFlares = bs.readS32();
 
   // ColorF via FUN_0043f040 (packed 4×U8 at offset 0x178)
   result.flareColor = readColorF(bs);
 
   // 2 readString (offsets 0x188, 0x18c)
-  result.flareTexture = bs.readString();
-  result.smokeTexture = bs.readString();
+  result.flareModTexture = bs.readString();
+  result.flareBaseTexture = bs.readString();
 
-  // 3×F32 loop (offset 0x16c, count=3)
-  result.size = bs.readF32();
-  result.flareModTexture = bs.readF32();
-  result.smokeSize = bs.readF32();
+  // 3×F32 loop (offset 0x16c, count=3): size[0..2].
+  result.sizes = [bs.readF32(), bs.readF32(), bs.readF32()];
 
   return result;
 }
