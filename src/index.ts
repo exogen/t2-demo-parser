@@ -26,7 +26,6 @@ export type {
   DataBlockHeader,
   PathManagerEntry,
   ParsedDataBlock,
-  ScoreEntry,
   SensorGroupColor,
   TargetEntry,
   Move,

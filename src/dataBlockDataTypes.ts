@@ -877,8 +877,8 @@ export type ForceFieldBareDataBlock = SimDataBlock & {
   fadeMS?: number;
   baseTranslucency?: number;
   powerOffTranslucency?: number;
-  fadeInOnly?: boolean;
-  triggerEnable?: boolean;
+  teamPermiable?: boolean;
+  otherPermiable?: boolean;
   color1?: Color4;
   color2?: Color4;
   framesPerSec?: number;

@@ -1,3 +1,4 @@
+import type { MoveData } from "./ghostDataTypes.js";
 import type { ParsedData } from "./ClassRegistry.js";
 
 /** Ident string at the start of every .rec file (checked on playback). */
@@ -389,17 +390,6 @@ export interface ParsedDataBlock {
   data: ParsedData;
 }
 
-export interface ScoreEntry {
-  clientId: number;
-  teamId: number;
-  score: number;
-  field0: number;
-  field1: number;
-  field2: number;
-  isBot: boolean;
-  triggerFlags: boolean[];
-}
-
 /**
  * IFF (Identification Friend or Foe) color for one sensor group pairing.
  * sensorGroupColors[myGroup][theirGroup] determines how `theirGroup` appears
@@ -448,7 +438,8 @@ export interface InitialBlockData {
   firstPerson: boolean;
   connectionFields: number[];
   stateArray: number[];
-  scoreEntries: ScoreEntry[];
+  /** Queued client moves (GameConnection::mMoveList), starting at connectionFields[4]. */
+  moves: MoveData[];
   demoValues: string[];
   sensorGroupColors: SensorGroupColor[];
   targetEntries: TargetEntry[];

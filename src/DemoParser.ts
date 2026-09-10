@@ -1,10 +1,11 @@
 import { inflate, Inflate } from "fflate";
 import createDebug from "debug";
+import type { MoveData } from "./ghostDataTypes.js";
 import { BitStream } from "./BitStream.js";
 import { PacketParser } from "./PacketParser.js";
 import type { ClassRegistry, GhostParserEntry } from "./ClassRegistry.js";
 import { createDefaultRegistry } from "./defaultRegistry.js";
-import { GhostTracker } from "./GhostManager.js";
+import { GhostTracker, readMove } from "./GhostManager.js";
 import {
   BlockTypePacket,
   BlockTypeSendPacket,
@@ -34,7 +35,6 @@ import type {
   DataBlockHeader,
   ParsedDataBlock,
   PathManagerEntry,
-  ScoreEntry,
   TargetEntry,
   Move,
   InfoBlock,
@@ -722,19 +722,19 @@ export class DemoParser {
     const stateArray: number[] = [];
     for (let i = 0; i < 16; i++) stateArray.push(bs.readU32());
 
-    // --- B.6 U32 score entry count ---
-    // A score entry is at least 3 + 18 + 1 + 6 = 28 bits (FUN_00601800).
-    const scoreCount = readCheckedCount(bs, 28, "score entry count");
+    // --- B.6 U32 move count ---
+    // A packed move is at least 3 + 18 + 1 + 6 = 28 bits (FUN_00601800).
+    const moveCount = readCheckedCount(bs, 28, "move count");
 
-    // --- B.7 Score entries × count (FUN_00601800) ---
-    const scoreEntries: ScoreEntry[] = [];
-    for (let i = 0; i < scoreCount; i++) {
-      scoreEntries.push(this.readScoreEntry(bs));
+    // --- B.7 Queued moves × count (FUN_00601800) ---
+    const moves: MoveData[] = [];
+    for (let i = 0; i < moveCount; i++) {
+      moves.push(readMove(bs));
     }
     debugInitial(
-      "after score entries bit=%d scoreCount=%d",
+      "after queued moves bit=%d moveCount=%d",
       bs.getCurPos(),
-      scoreCount,
+      moveCount,
     );
 
     // B.8: FUN_005fb130 — clears internal state, no bitstream I/O
@@ -970,7 +970,7 @@ export class DemoParser {
       firstPerson,
       connectionFields,
       stateArray,
-      scoreEntries,
+      moves,
       demoValues,
       sensorGroupColors,
       targetEntries,
@@ -992,33 +992,6 @@ export class DemoParser {
       phase2Valid,
       phase2Error,
       warnings,
-    };
-  }
-
-  /**
-   * Read a score entry from FUN_00601800.
-   * Format: 3 conditional U16s + 3 U6s + 1 flag + 6 flags.
-   */
-  private readScoreEntry(bs: BitStream): ScoreEntry {
-    const clientId = bs.readFlag() ? bs.readInt(16) : 0;
-    const teamId = bs.readFlag() ? bs.readInt(16) : 0;
-    const score = bs.readFlag() ? bs.readInt(16) : 0;
-    const field0 = bs.readInt(6);
-    const field1 = bs.readInt(6);
-    const field2 = bs.readInt(6);
-    // FUN_006014e0: post-processing, no stream reads
-    const isBot = bs.readFlag();
-    const triggerFlags: boolean[] = [];
-    for (let i = 0; i < 6; i++) triggerFlags.push(bs.readFlag());
-    return {
-      clientId,
-      teamId,
-      score,
-      field0,
-      field1,
-      field2,
-      isBot,
-      triggerFlags,
     };
   }
 
@@ -1137,11 +1110,7 @@ export class DemoParser {
     const entryCount = readCheckedCount(bs, 64, "PathManager entry count");
     for (let i = 0; i < entryCount; i++) {
       const entryId = bs.readU32();
-      const recordCount = readCheckedCount(
-        bs,
-        128,
-        "PathManager record count",
-      );
+      const recordCount = readCheckedCount(bs, 128, "PathManager record count");
       const records: {
         field0: number;
         field1: number;

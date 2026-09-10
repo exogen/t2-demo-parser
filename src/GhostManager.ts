@@ -129,7 +129,8 @@ export class GhostTracker implements GhostTrackerInterface {
 // Shared parsing helpers
 // ============================================================
 
-function readMove(bs: BitStream): MoveData {
+/** Move::unpack (0x601800), shared by ghosts and the demo's initial move queue. */
+export function readMove(bs: BitStream): MoveData {
   const pyaw = bs.readFlag() ? bs.readInt(16) : 0;
   const ppitch = bs.readFlag() ? bs.readInt(16) : 0;
   const proll = bs.readFlag() ? bs.readInt(16) : 0;
@@ -179,9 +180,10 @@ function readGhostRef10(bs: BitStream): number {
  * Source object + image slot pair written via writeRangedU32(0, 1024)
  * (11 bits, resolveGhost-style) and writeRangedU32(0, 7) (3 bits).
  */
-function readSourceObjectSlot(
-  bs: BitStream,
-): { sourceObject: number; sourceSlot: number } {
+function readSourceObjectSlot(bs: BitStream): {
+  sourceObject: number;
+  sourceSlot: number;
+} {
   return { sourceObject: readObjectRef11(bs), sourceSlot: bs.readInt(3) };
 }
 

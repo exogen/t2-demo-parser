@@ -1974,9 +1974,9 @@ function forceFieldBareDataUnpack(bs: BitStream): ForceFieldBareDataBlock {
   result.baseTranslucency = bs.readF32();
   result.powerOffTranslucency = bs.readF32();
 
-  // 2 readFlag (offsets 0x8c, 0x8d — 1-bit flags, inline bit extraction)
-  result.fadeInOnly = bs.readFlag();
-  result.triggerEnable = bs.readFlag();
+  // initPersistFields (0x6751a0) names offsets 0x8c/0x8d; unpackData reads them in that order.
+  result.teamPermiable = bs.readFlag();
+  result.otherPermiable = bs.readFlag();
 
   // 2 ColorF via FUN_0043f040 (packed 4×U8 = 32 bits each, offsets 0x90, 0xa0)
   result.color1 = readColorF(bs);
