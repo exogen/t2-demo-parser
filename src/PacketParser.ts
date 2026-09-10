@@ -125,6 +125,50 @@ export class PacketParser {
     }
   }
 
+  /** Mutable decoding state only; immutable datablock values remain shared. */
+  saveState() {
+    return {
+      ...structuredClone({
+        compressionPoint: this.compressionPoint,
+        lastSeqRecvdAtSend: this.lastSeqRecvdAtSend,
+        lastSeqRecvd: this.lastSeqRecvd,
+        highestAckedSeq: this.highestAckedSeq,
+        lastSendSeq: this.lastSendSeq,
+        recvAckMask: this.recvAckMask,
+        connectSequence: this.connectSequence,
+        lastRecvAckAck: this.lastRecvAckAck,
+        _connectionEstablished: this._connectionEstablished,
+        nextRecvEventSeq: this.nextRecvEventSeq,
+        pendingGuaranteedEvents: this.pendingGuaranteedEvents,
+        _fault: this._fault,
+        controlObjectParsed: this.controlObjectParsed,
+        controlObjectFailed: this.controlObjectFailed,
+        eventsParsed: this.eventsParsed,
+        eventsFailed: this.eventsFailed,
+        ghostCreatesParsed: this.ghostCreatesParsed,
+        ghostUpdatesParsed: this.ghostUpdatesParsed,
+        ghostDeletes: this.ghostDeletes,
+        ghostsFailed: this.ghostsFailed,
+        ghostsTrackerDiverged: this.ghostsTrackerDiverged,
+        packetsParsed: this.packetsParsed,
+        protocolRejected: this.protocolRejected,
+        protocolNoDispatch: this.protocolNoDispatch,
+        packetsDroppedAfterFault: this.packetsDroppedAfterFault,
+      }),
+      dataBlockDataMap: this.dataBlockDataMap
+        ? new Map(this.dataBlockDataMap)
+        : undefined,
+    };
+  }
+
+  restoreState(state: ReturnType<PacketParser["saveState"]>): void {
+    const { dataBlockDataMap, ...mutable } = state;
+    Object.assign(this, structuredClone(mutable));
+    this.dataBlockDataMap = dataBlockDataMap
+      ? new Map(dataBlockDataMap)
+      : undefined;
+  }
+
   getCompressionPoint(): { x: number; y: number; z: number } {
     return { ...this.compressionPoint };
   }
@@ -374,7 +418,9 @@ export class PacketParser {
       parseFault = {
         stage: "gameState",
         message: `control object ghost ${gameState.controlObjectGhostIndex} could not be read${
-          gameState.controlObjectError ? `: ${gameState.controlObjectError}` : ""
+          gameState.controlObjectError
+            ? `: ${gameState.controlObjectError}`
+            : ""
         }`,
       };
     } else if (!eventsComplete) {
@@ -389,7 +435,8 @@ export class PacketParser {
         stage: "ghost",
         message: `ghost ${lastGhost.index} (class ${lastGhost.classId}, ${
           lastGhost.classId !== undefined
-            ? (this.registry.getGhostParser(lastGhost.classId)?.name ?? "unbound")
+            ? (this.registry.getGhostParser(lastGhost.classId)?.name ??
+              "unbound")
             : "unknown"
         }) ${lastGhost.type} failed to parse: ${lastGhost.error ?? "unknown error"}`,
       };

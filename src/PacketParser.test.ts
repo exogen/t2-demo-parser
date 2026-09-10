@@ -228,3 +228,25 @@ describe("PacketParser parse faults", () => {
     expect(parsed.parseFault).toBeUndefined();
   });
 });
+
+
+describe("packet checkpoints", () => {
+  it("restores both the fault latch and protocol state around a bad packet", () => {
+    const { parser } = makeParser({});
+    const before = parser.saveState();
+    const w = packetPrefix();
+    w.flag(true).flag(true).write(7, 10);
+    afterControlObject(w).flag(false);
+    const bytes = w.finish();
+    const failed = parser.parsePacket(bytes);
+    expect(parser.faulted).toBe(true);
+    const faulted = parser.saveState();
+    parser.restoreState(before);
+    expect(parser.faulted).toBe(false);
+    expect(parser.parsePacket(bytes)).toEqual(failed);
+    parser.restoreState(faulted);
+    const dropped = parser.parsePacket(bytes);
+    expect(dropped.parseFault).toEqual(failed.parseFault);
+    expect(parser.packetsDroppedAfterFault).toBe(1);
+  });
+});

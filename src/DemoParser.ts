@@ -87,6 +87,7 @@ export class DemoParser {
   private _blockStreamOffset = 0;
   private _blockCount?: number;
   private _blockCursor = 0;
+  private readonly checkpointOwner = {};
   // Incremental mode: the compressed block stream arrives in chunks via
   // push() and is inflated as it goes; nextBlock() treats the end of the
   // decompressed data as a frontier (more may arrive) until finish().
@@ -518,6 +519,32 @@ export class DemoParser {
     }
 
     return block;
+  }
+
+  /** Capture a block boundary without copying the recording or inflater. */
+  createCheckpoint() {
+    if (!this._loaded) throw new Error("must call load() first");
+    return {
+      owner: this.checkpointOwner,
+      blockStreamOffset: this._blockStreamOffset,
+      blockCursor: this._blockCursor,
+      ghosts: structuredClone(this.ghostTracker.getAllGhosts()),
+      packetState: this.packetParser.saveState(),
+    };
+  }
+
+  /** Checkpoints belong to this parser, including after its download grows. */
+  restoreCheckpoint(
+    checkpoint: ReturnType<DemoParser["createCheckpoint"]>,
+  ): void {
+    if (checkpoint.owner !== this.checkpointOwner)
+      throw new Error("Checkpoint belongs to a different demo parser");
+    this._blockStreamOffset = checkpoint.blockStreamOffset;
+    this._blockCursor = checkpoint.blockCursor;
+    this.ghostTracker.clear();
+    for (const [index, ghost] of checkpoint.ghosts)
+      this.ghostTracker.createGhost(index, ghost.classId, ghost.className);
+    this.packetParser.restoreState(checkpoint.packetState);
   }
 
   /**
