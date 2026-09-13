@@ -351,3 +351,54 @@ describe("projectile datablock field decoding", () => {
     expect(personalFX!.texture0).toBe("special/stationLight");
   });
 });
+
+describe("ground effect datablocks", () => {
+  it("preserves the integer foot-puff count and hover trail field order", async () => {
+    const blocks = await loadDataBlocks("exogen_Katabatic_vpad.rec");
+    const players = [...blocks.values()].filter(
+      (b) => b.className === "PlayerData",
+    );
+    const hover = [...blocks.values()].filter(
+      (b) => b.className === "HoverVehicleData",
+    );
+    expect(players.length).toBeGreaterThan(0);
+    expect(hover.length).toBeGreaterThan(0);
+    for (const block of players) {
+      expect(block.data.footPuffNumParts).toBe(15);
+      expect(block.data.footPuffRadius).toBeCloseTo(0.25);
+    }
+    // initPersistFields: height +0x4dc, frequency +0x4e0; unpackData
+    // 0x00616a20 reads them in that order (build 25034).
+    for (const block of hover) {
+      expect(block.data.triggerTrailHeight).toBeCloseTo(3.6);
+      expect(block.data.dustTrailFreqMod).toBe(15);
+    }
+  });
+});
+
+it("decodes MPB wheel contact parameters in executable wire order", async () => {
+  const blocks = await loadDataBlocks("exogen_Katabatic_vpad.rec");
+  const wheels = [...blocks.values()].filter(
+    (b) => b.className === "WheeledVehicleData",
+  );
+  expect(wheels.length).toBeGreaterThan(0);
+  for (const { data } of wheels) {
+    expect(data.tireFriction).toBe(10);
+    expect(data.tireRestitution).toBe(0.5);
+    expect(data.tireRadius).toBeCloseTo(1.6);
+    expect(data.tireLateralForce).toBe(3000);
+    expect(data.tireLateralDamping).toBe(400);
+    expect(data.tireLateralRelaxation).toBe(1);
+    expect(data.tireLongitudinalForce).toBe(12000);
+    expect(data.tireLongitudinalDamping).toBe(600);
+    expect(data.tireLongitudinalRelaxation).toBe(1);
+    expect(data.springForce).toBe(8000);
+    expect(data.springDamping).toBe(1300);
+    expect(data.antiSwayForce).toBe(6000);
+    expect(data.maxWheelSpeed).toBe(20);
+    // This fixture server uses 8 hp for its MPB.
+    expect(data.engineTorque).toBe(8 * 745);
+    expect(data.brakeTorque).toBe(8 * 745);
+    expect(data.staticLoadScale).toBe(2);
+  }
+});

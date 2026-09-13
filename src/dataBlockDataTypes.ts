@@ -326,30 +326,30 @@ export type HoverVehicleDataBlock = VehicleDataBlock & {
 
 export type WheeledVehicleDataBlock = VehicleDataBlock & {
   tireRadius?: number;
-  tireStaticFriction?: number;
-  tireKineticFriction?: number;
+  tireFriction?: number;
   tireRestitution?: number;
   tireLateralForce?: number;
   tireLateralDamping?: number;
   tireLateralRelaxation?: number;
   tireLongitudinalForce?: number;
   tireLongitudinalDamping?: number;
+  tireLongitudinalRelaxation?: number;
   tireEmitter?: number | null;
   jetSound?: number | null;
   engineSound?: number | null;
   squealSound?: number | null;
-  wadeSound?: number | null;
-  spring?: number;
+  wheelImpactSound?: number | null;
+  springForce?: number;
   springDamping?: number;
-  springLength?: number;
-  brakeTorque?: number;
-  engineTorque?: number;
-  engineBrake?: number;
+  antiSwayForce?: number;
+  antiRockForce?: number;
   maxWheelSpeed?: number;
-  steeringAngle?: number;
-  steeringReturn?: number;
-  steeringDamping?: number;
-  powerSteeringFactor?: number;
+  engineTorque?: number;
+  brakeTorque?: number;
+  staticLoadScale?: number;
+  stabilizerForce?: number;
+  gyroForce?: number;
+  gyroDamping?: number;
 };
 
 // ---------------------------------------------------------------------------

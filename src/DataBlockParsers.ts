@@ -562,9 +562,9 @@ function playerDataUnpack(bs: BitStream): PlayerDataBlock {
   // 12. boxSize 3×F32 (offsets 0x528, 0x52c, 0x530)
   result.boxSize = bs.readPoint3F();
 
-  // 13. footPuffEmitter + 2 F32s (offset 0xcf0, 0xcf4, 0xcf8)
+  // 13. footPuffEmitter, S32 count, F32 radius (0xcf0, 0xcf4, 0xcf8)
   result.footPuffEmitter = readDataBlockRef(bs);
-  result.footPuffNumParts = bs.readF32();
+  result.footPuffNumParts = bs.readS32();
   result.footPuffRadius = bs.readF32();
 
   // 14. decalData + 1 F32 (offset 0xd00, 0x3f8)
@@ -760,8 +760,8 @@ function hoverVehicleDataUnpack(bs: BitStream): HoverVehicleDataBlock {
   result.dustTrailOffset = bs.readPoint3F();
 
   // 2 F32s
-  result.dustTrailFreqMod = bs.readF32();
   result.triggerTrailHeight = bs.readF32();
+  result.dustTrailFreqMod = bs.readF32();
 
   // 3 sound refs
   result.floatSound = readDataBlockRef(bs);
@@ -793,16 +793,16 @@ function hoverVehicleDataUnpack(bs: BitStream): HoverVehicleDataBlock {
 function wheeledVehicleDataUnpack(bs: BitStream): WheeledVehicleDataBlock {
   const result: WheeledVehicleDataBlock = vehicleDataUnpack(bs);
 
-  // 9 tire F32s
-  result.tireRadius = bs.readF32();
-  result.tireStaticFriction = bs.readF32();
-  result.tireKineticFriction = bs.readF32();
+  // build 25034: 0x612670/0x6128c0, fields +0x450 through +0x470.
+  result.tireFriction = bs.readF32();
   result.tireRestitution = bs.readF32();
+  result.tireRadius = bs.readF32();
   result.tireLateralForce = bs.readF32();
   result.tireLateralDamping = bs.readF32();
   result.tireLateralRelaxation = bs.readF32();
   result.tireLongitudinalForce = bs.readF32();
   result.tireLongitudinalDamping = bs.readF32();
+  result.tireLongitudinalRelaxation = bs.readF32();
 
   // tire emitter ref
   result.tireEmitter = readDataBlockRef(bs);
@@ -811,20 +811,19 @@ function wheeledVehicleDataUnpack(bs: BitStream): WheeledVehicleDataBlock {
   result.jetSound = readDataBlockRef(bs);
   result.engineSound = readDataBlockRef(bs);
   result.squealSound = readDataBlockRef(bs);
-  result.wadeSound = readDataBlockRef(bs);
+  result.wheelImpactSound = readDataBlockRef(bs);
 
-  // 11 F32s
-  result.spring = bs.readF32();
+  result.springForce = bs.readF32();
   result.springDamping = bs.readF32();
-  result.springLength = bs.readF32();
-  result.brakeTorque = bs.readF32();
-  result.engineTorque = bs.readF32();
-  result.engineBrake = bs.readF32();
+  result.antiSwayForce = bs.readF32();
+  result.antiRockForce = bs.readF32();
   result.maxWheelSpeed = bs.readF32();
-  result.steeringAngle = bs.readF32();
-  result.steeringReturn = bs.readF32();
-  result.steeringDamping = bs.readF32();
-  result.powerSteeringFactor = bs.readF32();
+  result.engineTorque = bs.readF32();
+  result.brakeTorque = bs.readF32();
+  result.staticLoadScale = bs.readF32();
+  result.stabilizerForce = bs.readF32();
+  result.gyroForce = bs.readF32();
+  result.gyroDamping = bs.readF32();
 
   return result;
 }
