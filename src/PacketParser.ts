@@ -466,7 +466,10 @@ export class PacketParser {
     const highestAck = bs.readInt(9);
     const packetType = bs.readInt(2);
     const ackByteCount = bs.readInt(3);
-    const ackMask = ackByteCount > 0 ? bs.readInt(8 * ackByteCount) : 0;
+    // processRawPacket (FUN_0043d4d0) rejects counts above four before
+    // reading the mask. Leave invalid counts for applyProtocolHeader.
+    const ackMask =
+      ackByteCount > 0 && ackByteCount <= 4 ? bs.readInt(8 * ackByteCount) : 0;
 
     return {
       gameFlag,

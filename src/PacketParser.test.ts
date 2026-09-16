@@ -98,6 +98,40 @@ function packetDataEntry(
   };
 }
 
+describe("PacketParser protocol rejection", () => {
+  it.each(
+    [0, 1, 2].flatMap((packetType) =>
+      [5, 6, 7].map((ackByteCount) => [packetType, ackByteCount]),
+    ),
+  )(
+    "ignores packet type %i with %i ack bytes without faulting",
+    (packetType, ackByteCount) => {
+      const { parser } = makeParser({});
+      const before = parser.getConnectionProtocolState();
+      const invalid = new BitWriter()
+        .flag(true)
+        .write(0, 1)
+        .write(1, 9)
+        .write(0, 9)
+        .write(packetType, 2)
+        .write(ackByteCount, 3);
+
+      const parsed = parser.parsePacket(invalid.finish());
+      expect(parsed.parseFault).toBeUndefined();
+      expect(parsed.events).toEqual([]);
+      expect(parsed.ghosts).toEqual([]);
+      expect(parser.protocolRejected).toBe(1);
+      expect(parser.getConnectionProtocolState()).toEqual(before);
+
+      const valid = packetPrefix().flag(false);
+      afterControlObject(valid).flag(false);
+      expect(parser.parsePacket(valid.finish()).parseFault).toBeUndefined();
+      expect(parser.getConnectionProtocolState().lastSeqRecvd).toBe(1);
+      expect(parser.protocolRejected).toBe(1);
+    },
+  );
+});
+
 describe("PacketParser control object", () => {
   it("reads the tracked ghost's class only, like GameConnection::readPacket", () => {
     const calls: string[] = [];
@@ -228,7 +262,6 @@ describe("PacketParser parse faults", () => {
     expect(parsed.parseFault).toBeUndefined();
   });
 });
-
 
 describe("packet checkpoints", () => {
   it("restores both the fault latch and protocol state around a bad packet", () => {
