@@ -315,6 +315,8 @@ export type TSStaticGhostData = {
 };
 
 export type TerrainBlockGhostData = {
+  /** Eight terrain texture slots sent by newer TribesNEXT servers. */
+  materialNames?: string[];
   crc?: number;
   terrFileName?: string;
   detailTextureName?: string;

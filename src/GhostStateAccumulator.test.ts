@@ -201,6 +201,7 @@ describe("seeded parser round-trip", () => {
           const rejectedAtCutover = source.protocolRejected;
 
           const seeded = createLiveParser({
+            protocolVersion: source.getProtocolVersion(),
             dataBlocks: source.getDataBlockDataMap() ?? [],
             ghosts: trackerEntries.map(([index, entry]) => ({
               index,

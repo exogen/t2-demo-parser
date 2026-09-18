@@ -12,6 +12,8 @@ export interface LiveParserKit {
 }
 
 export interface LiveParserSeed {
+  /** Negotiated wire protocol (51 retail, 52 QoL). Null/omitted detects demo terrain extensions. */
+  protocolVersion?: number | null;
   /** objectId → parsed datablock data, copied into the parser's map. */
   dataBlocks?: Iterable<[number, ParsedData]>;
   /** Existing ghosts, so mid-stream updates aren't misread as creates. */
@@ -118,6 +120,7 @@ export function createLiveParser(seed?: LiveParserSeed): LiveParserKit {
 
   const packetParser = new PacketParser(registry, ghostTracker, {
     dataBlockDataMap,
+    protocolVersion: seed?.protocolVersion,
     connectionProtocolState: seed?.connectionProtocolState,
     nextRecvEventSeq: seed?.nextRecvEventSeq,
     compressionPoint: seed?.compressionPoint,

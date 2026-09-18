@@ -84,3 +84,26 @@ describe("createLiveParser seeding", () => {
     expect(kit.registry.getGhostClassId("Player")).toBe(25);
   });
 });
+
+describe("wire protocol version", () => {
+  it.each([undefined, null, 51, 52])(
+    "preserves protocol %s in live seeds",
+    (protocolVersion) => {
+      const source = createLiveParser({ protocolVersion }).packetParser;
+      const seeded = createLiveParser({
+        protocolVersion: source.getProtocolVersion(),
+      }).packetParser;
+      expect(source.getProtocolVersion()).toBe(protocolVersion ?? null);
+      expect(seeded.getProtocolVersion()).toBe(source.getProtocolVersion());
+    },
+  );
+
+  it.each([0, -1, 51.5, NaN, Infinity, 0x100000000])(
+    "rejects an invalid protocol version (%s)",
+    (protocolVersion) => {
+      expect(() => createLiveParser({ protocolVersion })).toThrow(
+        /protocolVersion/,
+      );
+    },
+  );
+});

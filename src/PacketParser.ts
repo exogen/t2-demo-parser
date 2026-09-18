@@ -61,6 +61,7 @@ export class PacketParser {
     absoluteSequenceNumber: number;
     event: NetEventInfo;
   }> = [];
+  private protocolVersion: number | null;
   private readonly haltOnFault: boolean;
   private _fault?: ParseFault;
 
@@ -88,6 +89,8 @@ export class PacketParser {
     registry: ClassRegistry,
     ghostTracker: GhostTracker,
     options?: {
+      /** Negotiated wire version, not the .rec header version. Null/omitted enables demo detection. */
+      protocolVersion?: number | null;
       dataBlockDataMap?: Map<number, ParsedData>;
       connectionProtocolState?: ConnectionProtocolState;
       nextRecvEventSeq?: number;
@@ -105,6 +108,14 @@ export class PacketParser {
       haltOnFault?: boolean;
     },
   ) {
+    const version = options?.protocolVersion ?? null;
+    if (
+      version !== null &&
+      (!Number.isInteger(version) || version < 1 || version > 0xffffffff)
+    ) {
+      throw new RangeError("protocolVersion must be a positive uint32 or null");
+    }
+    this.protocolVersion = version;
     this.registry = registry;
     this.ghostTracker = ghostTracker;
     this.dataBlockDataMap = options?.dataBlockDataMap;
@@ -129,6 +140,7 @@ export class PacketParser {
   saveState() {
     return {
       ...structuredClone({
+        protocolVersion: this.protocolVersion,
         compressionPoint: this.compressionPoint,
         lastSeqRecvdAtSend: this.lastSeqRecvdAtSend,
         lastSeqRecvd: this.lastSeqRecvd,
@@ -169,6 +181,11 @@ export class PacketParser {
       : undefined;
   }
 
+  /** The negotiated wire version, or null when only demo bytes are available. */
+  getProtocolVersion(): number | null {
+    return this.protocolVersion;
+  }
+
   getCompressionPoint(): { x: number; y: number; z: number } {
     return { ...this.compressionPoint };
   }
@@ -195,6 +212,7 @@ export class PacketParser {
   private getConnectionContext(): ConnectionContext {
     const dbMap = this.dataBlockDataMap;
     return {
+      protocolVersion: this.protocolVersion,
       compressionPoint: this.compressionPoint,
       ghostTracker: this.ghostTracker,
       getDataBlockParser: (classId: number) =>
@@ -228,7 +246,7 @@ export class PacketParser {
   /**
    * Export the current protocol window state. Together with
    * `getNextRecvEventSeq`, `getPendingGuaranteedEvents`,
-   * `getCompressionPoint`, `getDataBlockDataMap`, and the ghost tracker
+   * `getCompressionPoint`, `getProtocolVersion`, `getDataBlockDataMap`, and the ghost tracker
    * contents, this captures all cross-packet parser state, so an
    * identically seeded parser continues the stream in lockstep.
    */

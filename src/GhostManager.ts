@@ -1602,10 +1602,41 @@ function readEmptySquareRuns(bs: BitStream): number[] {
   return runs;
 }
 
+/**
+ * TribesNEXT 2025-09-22 IFC22.dll (pack 0x10027a00, unpack 0x10027b80)
+ * appends a flag and a string containing exactly eight newline-separated
+ * terrain materials to server-to-client terrain updates on protocol > 51.
+ * Its demo writer explicitly omits this extension from the saved ghosts,
+ * and the demo header still says 51, losing the negotiated wire version.
+ * Live connections consume the negotiated layout, including a false flag
+ * or malformed extension. Only unknown-version demos need lookahead; never
+ * cache its result across packets, maps, checkpoint restores or catch-up.
+ */
+function readTerrainMaterialNames(
+  bs: BitStream,
+  protocolVersion: number | null | undefined,
+): string[] | undefined {
+  if (protocolVersion != null) {
+    if (protocolVersion <= 51 || !bs.readFlag()) return;
+    return bs.readString().split("\n");
+  }
+  const probe = bs.fork();
+  if (!probe.readFlag()) return;
+  const names = probe.readString().split("\n");
+  if (
+    probe.isError() ||
+    names.length !== 8 ||
+    names.some((name) => /[\x00-\x1f\x7f]/.test(name))
+  )
+    return;
+  bs.readFlag();
+  return bs.readString().split("\n");
+}
+
 function terrainBlockUnpackUpdate(
   bs: BitStream,
   _isInitial: boolean,
-  _conn: ConnectionContext,
+  conn: ConnectionContext,
 ): TerrainBlockGhostData {
   // TerrainBlock extends SceneObject (NOT GameBase).
   // V12 source: terrain/terrData.cc lines 910-941
@@ -1636,6 +1667,10 @@ function terrainBlockUnpackUpdate(
     }
   }
 
+  if (!conn.isDemoStartBlock && !bs.isError()) {
+    const materialNames = readTerrainMaterialNames(bs, conn.protocolVersion);
+    if (materialNames) result.materialNames = materialNames;
+  }
   return result;
 }
 

@@ -20,6 +20,15 @@ export class BitStream {
     this.error = false;
   }
 
+  /** Independent lookahead, including string-prefix and error state. */
+  fork(): BitStream {
+    const copy = new BitStream(this.data, this.bitNum);
+    copy.maxReadBitNum = this.maxReadBitNum;
+    copy.error = this.error;
+    copy.stringBuffer = this.stringBuffer;
+    return copy;
+  }
+
   getCurPos(): number {
     return this.bitNum;
   }

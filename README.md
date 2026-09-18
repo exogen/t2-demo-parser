@@ -502,21 +502,21 @@ interface ControlObjectKeyframe {
 
 Available via `parser.getPacketParser()`. Exposes parse statistics.
 
-| Property                | Type     | Description                                                     |
-| ----------------------- | -------- | --------------------------------------------------------------- |
-| `packetsParsed`         | `number` | Total packets successfully parsed.                              |
-| `ghostCreatesParsed`    | `number` | Ghost create operations parsed.                                 |
-| `ghostUpdatesParsed`    | `number` | Ghost update operations parsed.                                 |
-| `ghostDeletes`          | `number` | Ghost delete operations.                                        |
-| `ghostsFailed`          | `number` | Ghost operations that failed to parse.                          |
-| `ghostsTrackerDiverged` | `number` | Ghost tracker inconsistencies detected.                         |
-| `eventsParsed`          | `number` | Events parsed.                                                  |
-| `eventsFailed`          | `number` | Events that failed to parse.                                    |
-| `controlObjectParsed`   | `number` | Control object updates parsed.                                  |
-| `controlObjectFailed`   | `number` | Control object updates that failed.                             |
-| `protocolRejected`      | `number` | Packets rejected by the dnet protocol window.                   |
-| `protocolNoDispatch`    | `number` | Packets accepted but not dispatched (duplicates/out-of-window). |
-| `packetsDroppedAfterFault` | `number` | Packets returned empty because the parser had halted.        |
+| Property                   | Type     | Description                                                     |
+| -------------------------- | -------- | --------------------------------------------------------------- |
+| `packetsParsed`            | `number` | Total packets successfully parsed.                              |
+| `ghostCreatesParsed`       | `number` | Ghost create operations parsed.                                 |
+| `ghostUpdatesParsed`       | `number` | Ghost update operations parsed.                                 |
+| `ghostDeletes`             | `number` | Ghost delete operations.                                        |
+| `ghostsFailed`             | `number` | Ghost operations that failed to parse.                          |
+| `ghostsTrackerDiverged`    | `number` | Ghost tracker inconsistencies detected.                         |
+| `eventsParsed`             | `number` | Events parsed.                                                  |
+| `eventsFailed`             | `number` | Events that failed to parse.                                    |
+| `controlObjectParsed`      | `number` | Control object updates parsed.                                  |
+| `controlObjectFailed`      | `number` | Control object updates that failed.                             |
+| `protocolRejected`         | `number` | Packets rejected by the dnet protocol window.                   |
+| `protocolNoDispatch`       | `number` | Packets accepted but not dispatched (duplicates/out-of-window). |
+| `packetsDroppedAfterFault` | `number` | Packets returned empty because the parser had halted.           |
 
 #### Faults and halting
 
@@ -527,10 +527,10 @@ parser **halts** — every later `parsePacket()` returns an empty `PacketData`
 carrying the same fault and touches no state, because it would otherwise be
 parsing against ghost and event state that no longer mirrors the server.
 
-| Member      | Description                                                         |
-| ----------- | ------------------------------------------------------------------- |
-| `fault`     | The first `ParseFault`, or `undefined`.                             |
-| `faulted`   | `true` once a fault has been recorded.                              |
+| Member    | Description                             |
+| --------- | --------------------------------------- |
+| `fault`   | The first `ParseFault`, or `undefined`. |
+| `faulted` | `true` once a fault has been recorded.  |
 
 Pass `haltOnFault: false` (to `new PacketParser`, `new DemoParser`, or
 `createLiveParser`) to keep parsing regardless; each later packet still
@@ -565,7 +565,9 @@ parsing packets from a live Tribes 2 connection (e.g. via a network proxy).
 ```typescript
 import { createLiveParser } from "t2-demo-parser";
 
-const { registry, ghostTracker, packetParser } = createLiveParser();
+const { registry, ghostTracker, packetParser } = createLiveParser({
+  protocolVersion: 51, // version negotiated by the connection handshake
+});
 // Feed raw packet data through packetParser...
 ```
 
@@ -584,6 +586,7 @@ with the exporter (the late-joiner catch-up scenario — see
 
 ```typescript
 interface LiveParserSeed {
+  protocolVersion?: number | null; // negotiated wire version; null/omitted = unknown
   dataBlocks?: Iterable<[number, ParsedData]>; // objectId → parsed datablock
   ghosts?: Iterable<{ index: number; classId: number }>;
   connectionProtocolState?: ConnectionProtocolState;
@@ -596,6 +599,19 @@ interface LiveParserSeed {
   haltOnFault?: boolean; // default true, see PacketParser
 }
 ```
+
+Pass the **negotiated connection version**, not the server's maximum version:
+51 selects retail terrain payloads; 52 selects the QoL terrain extension.
+Export it with `packetParser.getProtocolVersion()` when seeding another parser.
+It is separate from `connectionProtocolState`, which holds packet sequence windows.
+
+Recordings do not preserve this version: even QoL recordings use the
+`0x330004` header and retail saved-ghost layout. With no known version, the
+parser recognizes an eight-slot terrain material string using non-consuming
+lookahead within the current packet. This fallback is necessarily heuristic;
+it never learns a global format from one map. If the recording's wire version
+is known externally, use `new DemoParser(bytes, { packetProtocolVersion: 52 })`.
+Saved initial ghosts still use retail layout, including with that override.
 
 ### `passiveObserverProtocolState(firstPacketByte): ConnectionProtocolState`
 
@@ -689,7 +705,11 @@ as the engine's `writeString`). `finish()` returns the packed `Uint8Array`.
 ```typescript
 import { BitWriter, BitStream } from "t2-demo-parser";
 
-const bytes = new BitWriter().writeFlag(true).writeInt(5, 4).writeString("hi").finish();
+const bytes = new BitWriter()
+  .writeFlag(true)
+  .writeInt(5, 4)
+  .writeString("hi")
+  .finish();
 const bs = new BitStream(bytes); // readFlag() → true, readInt(4) → 5, readString() → "hi"
 ```
 
@@ -699,12 +719,12 @@ const bs = new BitStream(bytes); // readFlag() → true, readInt(4) → 5, readS
 to its deterministic classId — the same setup `DemoParser` and
 `createLiveParser` use. Lookups go both ways:
 
-| Method                                  | Returns                          |
-| --------------------------------------- | -------------------------------- |
-| `getGhostParser(classId)` etc.          | Parser entry for a bound classId |
-| `getGhostClassId(name)` etc.            | Bound classId for a class name   |
-| `getGhostCatalog()` etc.                | `ReadonlyMap<name, entry>`       |
-| `getGhostBindings()` etc.               | `Map<classId, name>` (debug)     |
+| Method                         | Returns                          |
+| ------------------------------ | -------------------------------- |
+| `getGhostParser(classId)` etc. | Parser entry for a bound classId |
+| `getGhostClassId(name)` etc.   | Bound classId for a class name   |
+| `getGhostCatalog()` etc.       | `ReadonlyMap<name, entry>`       |
+| `getGhostBindings()` etc.      | `Map<classId, name>` (debug)     |
 
 The `Event` and `DataBlock` variants of each method exist too.
 

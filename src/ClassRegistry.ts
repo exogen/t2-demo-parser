@@ -9,28 +9,27 @@ export type ParsedData = { [key: string]: unknown };
 
 // --- Parser function signatures ---
 
-export type EventParser = (
-  bs: BitStream,
-  conn: ConnectionContext
-) => EventData;
+export type EventParser = (bs: BitStream, conn: ConnectionContext) => EventData;
 
 export type GhostUpdateParser = (
   bs: BitStream,
   isInitial: boolean,
-  conn: ConnectionContext
+  conn: ConnectionContext,
 ) => ParsedData;
 
 export type GhostPacketDataParser = (
   bs: BitStream,
-  conn: ConnectionContext
+  conn: ConnectionContext,
 ) => ParsedData;
 
-export type DataBlockParser = (
-  bs: BitStream
-) => ParsedData;
+export type DataBlockParser = (bs: BitStream) => ParsedData;
 
 /** Shared context passed to parsers from the connection state. */
 export interface ConnectionContext {
+  /** Saved demo ghosts use the retail layout even on TribesNEXT clients. */
+  isDemoStartBlock?: boolean;
+  /** Negotiated wire protocol (51 retail, 52 QoL); absent/null for demos. */
+  protocolVersion?: number | null;
   compressionPoint: { x: number; y: number; z: number };
   ghostTracker: GhostTrackerInterface;
   getDataBlockParser?: (classId: number) => DataBlockParserEntry | undefined;
@@ -136,7 +135,11 @@ export class ClassRegistry {
 
   catalogGhost<T extends object, P extends object = ParsedData>(entry: {
     name: string;
-    unpackUpdate: (bs: BitStream, isInitial: boolean, conn: ConnectionContext) => T;
+    unpackUpdate: (
+      bs: BitStream,
+      isInitial: boolean,
+      conn: ConnectionContext,
+    ) => T;
     readPacketData?: (bs: BitStream, conn: ConnectionContext) => P;
   }): void {
     this.ghosts.byName.set(entry.name, entry as unknown as GhostParserEntry);

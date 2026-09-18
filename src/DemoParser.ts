@@ -44,13 +44,6 @@ import type {
 } from "./types.js";
 
 const debug = createDebug("t2-demo-parser");
-/**
- * Sequence numbers assigned to ordered events carried in the demo start
- * block: past every 32-bit sequence, so they stay queued without ever
- * matching `nextRecvEventSeq` (see setupPacketParser).
- */
-const START_BLOCK_EVENT_SEQ_BASE = 0x1_0000_0000;
-
 const debugInitial = createDebug("t2-demo-parser:initial");
 const debugBlocks = createDebug("t2-demo-parser:blocks");
 
@@ -106,6 +99,7 @@ export class DemoParser {
   private _scanOffset = 0;
   private _bufferedMoveTicks = 0;
 
+  private readonly _packetProtocolVersion: number | null;
   private readonly _ignoreProtocolVersion: boolean;
   private readonly _haltOnFault: boolean | undefined;
 
@@ -120,6 +114,9 @@ export class DemoParser {
        * formats are not guaranteed to match, so expect faults.
        */
       ignoreProtocolVersion?: boolean;
+      /** Override the negotiated wire version, which .rec files do not save.
+       *  Null/omitted detects terrain extensions independently per payload. */
+      packetProtocolVersion?: number | null;
       /** Passed to PacketParser; see its `haltOnFault` option. */
       haltOnFault?: boolean;
     },
@@ -134,11 +131,15 @@ export class DemoParser {
     this._incremental = options?.incremental === true;
     this._ignoreProtocolVersion = options?.ignoreProtocolVersion === true;
     this._haltOnFault = options?.haltOnFault;
+    this._packetProtocolVersion = options?.packetProtocolVersion ?? null;
     // Parser catalogs bound to their deterministic classIds (derived from
     // binary analysis of the Tribes 2 executable).
     this.registry = createDefaultRegistry();
     this.ghostTracker = new GhostTracker();
-    this.packetParser = new PacketParser(this.registry, this.ghostTracker);
+    this.packetParser = new PacketParser(this.registry, this.ghostTracker, {
+      protocolVersion: this._packetProtocolVersion,
+      haltOnFault: this._haltOnFault,
+    });
   }
 
   getRegistry(): ClassRegistry {
@@ -605,23 +606,21 @@ export class DemoParser {
     }
 
     const pp = new PacketParser(this.registry, gt, {
+      protocolVersion: this._packetProtocolVersion,
       dataBlockDataMap,
       connectionProtocolState: initialBlock.connectionState,
       nextRecvEventSeq: initialBlock.nextRecvEventSeq,
       compressionPoint: initialBlock.initialCompressionPoint,
-      // NetConnection::eventReadStartBlock (FUN_00583ac0) appends the
-      // start block's in-flight ordered events to the wait queue without
-      // a sequence number (the field is never written; NetEvent's
-      // constructor leaves it uninitialized), so in the engine they can
-      // only ever dispatch by accident of heap contents. The deterministic
-      // stand-in keeps them queued behind every possible real sequence
-      // number, where they neither dispatch nor block dispatch.
-      pendingGuaranteedEvents: initialBlock.initialEvents
-        .filter((event) => !event.failed)
-        .map((event, i) => ({
-          absoluteSequenceNumber: START_BLOCK_EVENT_SEQ_BASE + i,
-          event,
-        })),
+      // Recording can start inside an ordered event's process callback:
+      // nextRecvEventSeq has advanced, but the remaining events in that
+      // packet are still in the wait queue. The demo saves their payloads
+      // in order, without sequence numbers. Restore that contiguous prefix
+      // at the saved receive sequence; parking it beyond the sequence range
+      // leaves a permanent hole and misinterprets later 7-bit wraps.
+      pendingGuaranteedEvents: initialBlock.initialEvents.map((event, i) => ({
+        absoluteSequenceNumber: (initialBlock.nextRecvEventSeq + i) >>> 0,
+        event,
+      })),
       haltOnFault: this._haltOnFault,
     });
 
@@ -1218,6 +1217,7 @@ export class DemoParser {
           const conn = {
             compressionPoint: { x: 0, y: 0, z: 0 },
             ghostTracker: this.ghostTracker,
+            isDemoStartBlock: true,
             getDataBlockParser: (cid: number) =>
               this.registry.getDataBlockParser(cid),
           };
@@ -1319,6 +1319,7 @@ export class DemoParser {
           entry.unpackUpdate(bs, true, {
             compressionPoint: { x: 0, y: 0, z: 0 },
             ghostTracker: this.ghostTracker,
+            isDemoStartBlock: true,
             getDataBlockData: (objectId: number) =>
               dataBlockDataMap.get(objectId),
             getDataBlockParser: (cid: number) =>
