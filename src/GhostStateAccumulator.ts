@@ -81,6 +81,13 @@ export class GhostStateAccumulator {
         data.message === GhostMsgEndGhosting
       ) {
         this.clear();
+      } else if (data.type === "TargetFreeEvent") {
+        // Tribes2.exe 0x00673180 calls GameBase::onTargetInfoChanged
+        // (0x005e3790), detaching the ghost before this target id is reused.
+        for (const ghost of this.ghosts.values()) {
+          if (ghost.parsedData.targetId === data.targetId)
+            ghost.parsedData.targetId = -1;
+        }
       } else if (data.type === "GhostAlwaysObjectEvent") {
         const ghostAlways = data as GhostAlwaysObjectEventData;
         if (typeof ghostAlways.classId === "number" && ghostAlways.objectData) {

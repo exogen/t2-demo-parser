@@ -79,6 +79,62 @@ describe("mergeGhostParsedData", () => {
   });
 });
 
+describe("TargetFreeEvent side effects", () => {
+  it("detaches existing ghosts before the target id is reused", () => {
+    const accumulator = new GhostStateAccumulator();
+    accumulator.applyPacket({
+      events: [],
+      ghosts: [32, 33].map((targetId, index) => ({
+        index,
+        type: "create",
+        classId: 10,
+        parsedData: { type: "Player", targetId },
+      })),
+    } as unknown as PacketData);
+    accumulator.applyPacket({
+      events: [{ parsedData: { type: "TargetFreeEvent", targetId: 32 } }],
+      ghosts: [],
+    } as unknown as PacketData);
+    expect(
+      accumulator.toInitialGhosts().map((ghost) => ghost.parsedData?.targetId),
+    ).toEqual([-1, 33]);
+    accumulator.applyPacket({
+      events: [],
+      ghosts: [
+        {
+          index: 2,
+          type: "create",
+          classId: 10,
+          parsedData: { type: "Player", targetId: 32 },
+        },
+      ],
+    } as unknown as PacketData);
+    expect(
+      accumulator.toInitialGhosts().map((ghost) => ghost.parsedData?.targetId),
+    ).toEqual([-1, 33, 32]);
+  });
+
+  it("applies a same-packet target assignment after the free event", () => {
+    const accumulator = new GhostStateAccumulator();
+    accumulator.applyPacket({
+      events: [],
+      ghosts: [
+        {
+          index: 0,
+          type: "create",
+          classId: 10,
+          parsedData: { type: "Player", targetId: 32 },
+        },
+      ],
+    } as unknown as PacketData);
+    accumulator.applyPacket({
+      events: [{ parsedData: { type: "TargetFreeEvent", targetId: 32 } }],
+      ghosts: [{ index: 0, type: "update", parsedData: { targetId: 33 } }],
+    } as unknown as PacketData);
+    expect(accumulator.toInitialGhosts()[0].parsedData?.targetId).toBe(33);
+  });
+});
+
 describe("EndGhosting side effects", () => {
   it("clears ghosts but retains datablocks (connection-lifetime state)", () => {
     const kit = createLiveParser({
