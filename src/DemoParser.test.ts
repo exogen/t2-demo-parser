@@ -61,6 +61,13 @@ const DEMOS = [
     minGhostCreates: 5000,
     minGhostUpdates: 450000,
   },
+  {
+    // Recorded while backlogged: 30 queued moves, stale client lastDelta.
+    file: "auto-capture_2025-05-16_05-04_DemoBot-Mia_CTFGame_Firestorm.rec",
+    minPackets: 5000,
+    minGhostCreates: 500,
+    minGhostUpdates: 70000,
+  },
 ];
 
 function demoExists(file: string): boolean {
@@ -73,6 +80,46 @@ async function parseDemoFile(file: string) {
   const result = await parser.parseFullDemo();
   return { parser, result, pp: parser.getPacketParser() };
 }
+
+describe("initial block fields in Tribes2.exe recordings", () => {
+  for (const { file } of DEMOS) {
+    it(`${file}: hold the engine's invariants`, { skip: !demoExists(file) }, async () => {
+      const parser = new DemoParser(fs.readFileSync(path.join(DEMO_DIR, file)));
+      const { initialBlock: ib } = await parser.load();
+
+      // The constructor's camera speed, never changed.
+      expect(ib.cameraSpeed).toBe(10);
+      // Server-side state: a client never fills it in.
+      expect(ib.targetVisibleMask).toEqual(Array(16).fill(0));
+      expect(ib.defaultIffColor).toEqual({ r: 255, g: 0, b: 0, a: 255 });
+      // readPacket pops every queued move below each lastMoveAck.
+      expect(ib.lastMoveAck).toBe(ib.firstMoveIndex);
+      expect(ib.lastClientMove).toBeGreaterThanOrEqual(ib.firstMoveIndex);
+      expect(ib.lastClientMove).toBeLessThanOrEqual(
+        ib.firstMoveIndex + ib.moves.length,
+      );
+      expect(ib.sensorGroup).toBeLessThan(32);
+      expect(ib.connectionFields.slice(2)).toEqual([
+        ib.lastMoveAck,
+        ib.lastClientMove,
+        ib.firstMoveIndex,
+        ib.sensorGroup,
+      ]);
+
+      // advanceClientTime rounds its tick up from lastTime,
+      // advanceServerTime rounds it down and never sets lastDelta.
+      const client = ib.clientProcessList!;
+      const server = ib.serverProcessList!;
+      expect(client.lastTick % 32).toBe(0);
+      expect(client.lastTick - client.lastTime).toBeGreaterThanOrEqual(0);
+      expect(client.lastTick - client.lastTime).toBeLessThan(32);
+      expect(server.lastTick % 32).toBe(0);
+      expect(server.lastTime - server.lastTick).toBeGreaterThanOrEqual(0);
+      expect(server.lastTime - server.lastTick).toBeLessThan(32);
+      expect(server.lastDelta).toBe(0);
+    });
+  }
+});
 
 describe("DemoParser integration", () => {
   for (const demo of DEMOS) {

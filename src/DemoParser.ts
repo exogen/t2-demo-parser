@@ -35,6 +35,8 @@ import type {
   DataBlockHeader,
   ParsedDataBlock,
   PathManagerEntry,
+  ProcessListState,
+  SensorGroupColor,
   TargetEntry,
   Move,
   InfoBlock,
@@ -42,10 +44,21 @@ import type {
   NetEventInfo,
   LoadResult,
 } from "./types.js";
+import type { Color4 } from "./dataTypes.js";
 
 const debug = createDebug("t2-demo-parser");
 const debugInitial = createDebug("t2-demo-parser:initial");
 const debugBlocks = createDebug("t2-demo-parser:blocks");
+
+const f32Bits = new DataView(new ArrayBuffer(4));
+
+/**
+ * The F32 whose IEEE 754 bit pattern is `bits`.
+ */
+function f32FromBits(bits: number): number {
+  f32Bits.setUint32(0, bits);
+  return f32Bits.getFloat32(0);
+}
 
 /**
  * Read a U32 count and reject it unless `minBitsPerEntry × count` bits
@@ -739,14 +752,18 @@ export class DemoParser {
     // --- B.3 $firstPerson (U8 boolean from GameConnection::writeDemoStartBlock) ---
     const firstPerson = bs.readU8() !== 0;
     // --- B.4 6× U32 connection fields ---
-    // @0x8384, @0x8388, @0x83f8, @0x83fc, @0x8400, @0x8434
+    // mCameraPos @0x8384 (F32), mCameraSpeed @0x8388 (F32), mLastMoveAck
+    // @0x83f8, mLastClientMove @0x83fc, mFirstMoveIndex @0x8400,
+    // mSensorGroup @0x8434
     const connectionFields: number[] = [];
     for (let i = 0; i < 6; i++) connectionFields.push(bs.readU32());
+    const [, , lastMoveAck, lastClientMove, firstMoveIndex, sensorGroup] =
+      connectionFields;
 
-    // --- B.5 16× U32 state array ---
+    // --- B.5 16× U32 mTargetVisibleMask ---
     // @0x83b8 + i*4, i=0..15
-    const stateArray: number[] = [];
-    for (let i = 0; i < 16; i++) stateArray.push(bs.readU32());
+    const targetVisibleMask: number[] = [];
+    for (let i = 0; i < 16; i++) targetVisibleMask.push(bs.readU32());
 
     // --- B.6 U32 move count ---
     // A packed move is at least 3 + 18 + 1 + 6 = 28 bits (FUN_00601800).
@@ -773,11 +790,14 @@ export class DemoParser {
       demoValues.length,
     );
 
-    // --- B.9 Complex TargetManager (FUN_00670660) ---
-    const { sensorGroupColors, targets: targetEntries } =
-      this.readComplexTargetManager(bs);
+    // --- B.9 TargetManager (FUN_00670660) ---
+    const {
+      defaultIffColor,
+      sensorGroupColors,
+      targets: targetEntries,
+    } = this.readTargetManager(bs);
     debugInitial(
-      "after complex target manager bit=%d targets=%d sensorGroupColors=%d",
+      "after target manager bit=%d targets=%d sensorGroupColors=%d",
       bs.getCurPos(),
       targetEntries.length,
       sensorGroupColors.length,
@@ -860,6 +880,8 @@ export class DemoParser {
       { x: number; y: number; z: number } | undefined;
     let missionName = "";
     let missionCRC = 0;
+    let clientProcessList: ProcessListState | undefined;
+    let serverProcessList: ProcessListState | undefined;
     let phase2Error: string | undefined;
     try {
       debugInitial(
@@ -942,12 +964,15 @@ export class DemoParser {
 
       // B.13 $MissionName
       missionName = bs.readString();
-      // B.14 mMissionCRC
+      // B.14 mMissionCRC, then SceneLighting::lightScene (FUN_00574b70)
+      // with it — no bitstream I/O
       missionCRC = bs.readU32();
-      // B.15 Simple TargetManager ×2. FUN_006021b0 reads U8 + 4×U32 at the
-      // current bit position; the binary does not byte-align here.
-      this.readSimpleTargetManager(bs);
-      this.readSimpleTargetManager(bs);
+      // B.15 Client then server ProcessList state: FUN_006021b0 on
+      // gClientProcessList (0x009e82f8), then gServerProcessList
+      // (0x009e5ec0), read at the current bit position; the binary does
+      // not byte-align here.
+      clientProcessList = this.readProcessListState(bs);
+      serverProcessList = this.readProcessListState(bs);
       debugInitial(
         'after sequential tail bit=%d mission="%s" CRC=0x%s',
         bs.getCurPos(),
@@ -994,10 +1019,18 @@ export class DemoParser {
       dataBlockCount,
       dataBlocks,
       firstPerson,
+      cameraPos: f32FromBits(connectionFields[0]),
+      cameraSpeed: f32FromBits(connectionFields[1]),
+      lastMoveAck,
+      lastClientMove,
+      firstMoveIndex,
+      sensorGroup,
       connectionFields,
-      stateArray,
+      targetVisibleMask,
+      stateArray: targetVisibleMask,
       moves,
       demoValues,
+      defaultIffColor,
       sensorGroupColors,
       targetEntries,
       connectionState,
@@ -1014,6 +1047,8 @@ export class DemoParser {
       initialCompressionPoint,
       missionName,
       missionCRC,
+      clientProcessList,
+      serverProcessList,
       phase2TrailingBits: remaining,
       phase2Valid,
       phase2Error,
@@ -1035,26 +1070,30 @@ export class DemoParser {
   }
 
   /**
-   * Read Complex TargetManager from FUN_00670660.
+   * Read the TargetManager from FUN_00670660.
    *
-   * Phase 1: 4×U8 initial data
+   * Phase 1: the default IFF color (ColorI, 4×U8)
    * Phase 2: 32×32 grid — each cell: readFlag + if true: 4×U8
    * Phase 3: 512 target entries with conditional fields
    */
-  private readComplexTargetManager(bs: BitStream): {
-    sensorGroupColors: import("./types.js").SensorGroupColor[];
+  private readTargetManager(bs: BitStream): {
+    defaultIffColor: Color4;
+    sensorGroupColors: SensorGroupColor[];
     targets: TargetEntry[];
   } {
-    // Phase 1: FUN_0043efe0 — read 4 bytes (4×U8)
-    bs.readU8();
-    bs.readU8();
-    bs.readU8();
-    bs.readU8();
+    // Phase 1: FUN_0043efe0 into the global default IFF color
+    // (DAT_009e4c10, statically 255, 0, 0, 255).
+    const defaultIffColor = {
+      r: bs.readU8(),
+      g: bs.readU8(),
+      b: bs.readU8(),
+      a: bs.readU8(),
+    };
 
     // Phase 2: 32×32 sensor group color grid (IFF colors).
     // sensorGroupColors[group][targetGroup] = RGBA determines how targetGroup
     // appears to group (e.g., red for enemy, green for friendly).
-    const sensorGroupColors: import("./types.js").SensorGroupColor[] = [];
+    const sensorGroupColors: SensorGroupColor[] = [];
     for (let group = 0; group < 32; group++) {
       for (let targetGroup = 0; targetGroup < 32; targetGroup++) {
         if (bs.readFlag()) {
@@ -1115,7 +1154,7 @@ export class DemoParser {
       targets.push(entry);
     }
 
-    return { sensorGroupColors, targets };
+    return { defaultIffColor, sensorGroupColors, targets };
   }
 
   /**
@@ -1157,15 +1196,18 @@ export class DemoParser {
   }
 
   /**
-   * Read Simple TargetManager from FUN_006021b0.
-   * Format: U8 flag + 4×U32 = 136 bits total.
+   * Read one ProcessList's tick state from FUN_006021b0.
+   * Format: U8 mDirty + U32 mCurrentTag, mLastTick, mLastTime, mLastDelta
+   * = 136 bits total.
    */
-  private readSimpleTargetManager(bs: BitStream): void {
-    bs.readU8(); // _read(1) = 8 bits
-    bs.readU32(); // 4× _read(4)
-    bs.readU32();
-    bs.readU32();
-    bs.readU32();
+  private readProcessListState(bs: BitStream): ProcessListState {
+    return {
+      dirty: bs.readU8() !== 0,
+      currentTag: bs.readU32(),
+      lastTick: bs.readU32(),
+      lastTime: bs.readU32(),
+      lastDelta: bs.readU32(),
+    };
   }
 
   private readConnectionProtocol(bs: BitStream): ConnectionProtocolState {
@@ -1434,8 +1476,8 @@ export class DemoParser {
   }
 
   /**
-   * Parse an 8-byte info block (type 3).
-   * Contains U32 + F32 (observed: always 1 + 120.0).
+   * Parse an 8-byte info block (type 3): a $firstPerson byte in a 4-byte
+   * slot, then the F32 camera FOV.
    */
   private readInfoBlock(data: Uint8Array): InfoBlock {
     const dv = new DataView(data.buffer, data.byteOffset, data.byteLength);

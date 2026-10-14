@@ -26,6 +26,7 @@ export type {
   DataBlockHeader,
   PathManagerEntry,
   ParsedDataBlock,
+  ProcessListState,
   SensorGroupColor,
   TargetEntry,
   Move,

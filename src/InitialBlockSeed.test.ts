@@ -2,11 +2,22 @@ import { describe, it, expect } from "vitest";
 import * as zlib from "zlib";
 import { BitWriter } from "./BitWriter.js";
 import { DemoParser } from "./DemoParser.js";
+import { BlockTypeInfo, BlockTypePacket } from "./types.js";
+import type { ProcessListState } from "./types.js";
+
+const FRESH_PROCESS_LIST: ProcessListState = {
+  dirty: false,
+  currentTag: 0,
+  lastTick: 0,
+  lastTime: 0,
+  lastDelta: 0,
+};
 
 /**
  * A from-connect initial block (no strings, datablocks, ghosts or control
  * object) laid out exactly as GameConnection::readDemoStartBlock
  * (FUN_005fb5c0) consumes it, with the ConnectionProtocol seed under test.
+ * Unset fields take a fresh connection's values.
  */
 function buildInitialBlock(seed: {
   lastSendSeq: number;
@@ -14,24 +25,35 @@ function buildInitialBlock(seed: {
   notifyCount: number;
   nextRecvEventSeq?: number;
   pendingSensorGroups?: number[];
+  cameraPos?: number;
+  lastMoveAck?: number;
+  lastClientMove?: number;
+  firstMoveIndex?: number;
+  sensorGroup?: number;
+  targetVisibleMask?: number[];
+  defaultIffColor?: number[];
+  controlObjectGhostIndex?: number;
+  missionName?: string;
+  missionCRC?: number;
+  processLists?: ProcessListState[];
 }): Uint8Array {
   const bs = new BitWriter();
   for (let i = 0; i < 1024; i++) bs.writeFlag(false); // tagged strings
   bs.writeU32(0); // datablock count
   bs.writeFlag(false); // datablock loop terminator
   bs.writeU8(1); // firstPerson
-  bs.writeU32(0); // cameraPos
-  bs.writeU32(0x41200000); // cameraSpeed 10.0f
-  bs.writeU32(0); // lastMoveAck
-  bs.writeU32(0); // lastClientMove
-  bs.writeU32(0); // firstMoveIndex
-  bs.writeU32(0); // aux
-  for (let i = 0; i < 16; i++) bs.writeU32(0); // state array
+  bs.writeF32(seed.cameraPos ?? 0);
+  bs.writeF32(10); // cameraSpeed
+  bs.writeU32(seed.lastMoveAck ?? 0);
+  bs.writeU32(seed.lastClientMove ?? 0);
+  bs.writeU32(seed.firstMoveIndex ?? 0);
+  bs.writeU32(seed.sensorGroup ?? 0);
+  for (let i = 0; i < 16; i++) bs.writeU32(seed.targetVisibleMask?.[i] ?? 0);
   bs.writeU32(0); // move list count
   bs.writeFlag(true);
   bs.writeString("Standard\t\t\t0\t0\t");
   bs.writeFlag(false); // DemoValues terminator
-  for (let i = 0; i < 4; i++) bs.writeU8(0); // TargetManager header
+  bs.writeBytes(seed.defaultIffColor ?? [255, 0, 0, 255]);
   for (let i = 0; i < 32 * 32; i++) bs.writeFlag(false);
   for (let i = 0; i < 512; i++) bs.writeFlag(false);
   for (let i = 0; i < 32; i++) bs.writeU32(0); // lastSeqRecvdAtSend
@@ -53,19 +75,35 @@ function buildInitialBlock(seed: {
   bs.writeFlag(false);
   bs.writeU32(0); // ghosting sequence
   bs.writeFlag(false);
-  bs.writeU32(0xffffffff); // no control object
-  bs.writeString("Katabatic");
-  bs.writeU32(0); // mission CRC
-  for (let i = 0; i < 2; i++) {
-    bs.writeU8(0);
-    for (let j = 0; j < 4; j++) bs.writeU32(0);
+  bs.writeS32(seed.controlObjectGhostIndex ?? -1);
+  bs.writeString(seed.missionName ?? "Katabatic");
+  bs.writeU32(seed.missionCRC ?? 0xffffffff);
+  // Client then server ProcessList state.
+  for (const list of seed.processLists ?? [
+    FRESH_PROCESS_LIST,
+    FRESH_PROCESS_LIST,
+  ]) {
+    bs.writeU8(list.dirty ? 1 : 0);
+    bs.writeU32(list.currentTag);
+    bs.writeU32(list.lastTick);
+    bs.writeU32(list.lastTime);
+    bs.writeU32(list.lastDelta);
   }
   return bs.finish(1); // V12 writes size = position + 1
 }
 
+/**
+ * A framed demo block: U16 LE (type << 12 | size), then the payload.
+ */
+function demoBlock(type: number, payload: Uint8Array): Buffer {
+  const header = Buffer.alloc(2);
+  header.writeUInt16LE((type << 12) | payload.length);
+  return Buffer.concat([header, payload]);
+}
+
 function buildDemoFile(
   initialBlock: Uint8Array,
-  blocks = Buffer.alloc(0),
+  blocks: Buffer = Buffer.alloc(0),
 ): Buffer {
   const ident = "Tribes2 Recording";
   const header = Buffer.alloc(1 + ident.length + 12);
@@ -96,9 +134,9 @@ describe("initial block engine-invariant warnings", () => {
     expect(initialBlock.missionName).toBe("Katabatic");
     expect(initialBlock.controlObjectGhostIndex).toBe(-1);
     expect(initialBlock.warnings).toEqual([]);
-    // Only bit padding plus the trailing pad byte remains: the simple
-    // TargetManagers are read at the current bit position, not
-    // byte-aligned, so the remainder is 8..15 bits.
+    // Only bit padding plus the trailing pad byte remains: the ProcessList
+    // states are read at the current bit position, not byte-aligned, so
+    // the remainder is 8..15 bits.
     expect(initialBlock.phase2TrailingBits).toBeGreaterThanOrEqual(8);
     expect(initialBlock.phase2TrailingBits).toBeLessThan(16);
   });
@@ -134,6 +172,146 @@ describe("initial block engine-invariant warnings", () => {
   });
 });
 
+describe("named initial block fields", () => {
+  const fresh = { lastSendSeq: 0, highestAckedSeq: 0, notifyCount: 0 };
+
+  async function loadInitialBlock(
+    seed: Parameters<typeof buildInitialBlock>[0],
+  ) {
+    const parser = new DemoParser(buildDemoFile(buildInitialBlock(seed)));
+    return (await parser.load()).initialBlock;
+  }
+
+  it("names the six connection fields and keeps their raw values", async () => {
+    const initialBlock = await loadInitialBlock({
+      ...fresh,
+      cameraPos: 1,
+      lastMoveAck: 41,
+      lastClientMove: 42,
+      firstMoveIndex: 40,
+      sensorGroup: 2,
+    });
+    expect(initialBlock).toMatchObject({
+      cameraPos: 1,
+      cameraSpeed: 10,
+      lastMoveAck: 41,
+      lastClientMove: 42,
+      firstMoveIndex: 40,
+      sensorGroup: 2,
+    });
+    expect(initialBlock.connectionFields).toEqual([
+      0x3f800000, 0x41200000, 41, 42, 40, 2,
+    ]);
+  });
+
+  it("reads mTargetVisibleMask, also exposed as the deprecated stateArray", async () => {
+    const mask = Array.from({ length: 16 }, (_, i) =>
+      i === 3 ? 0x80000001 : 0,
+    );
+    const initialBlock = await loadInitialBlock({
+      ...fresh,
+      targetVisibleMask: mask,
+    });
+    expect(initialBlock.targetVisibleMask).toEqual(mask);
+    expect(initialBlock.stateArray).toEqual(mask);
+  });
+
+  it("reads the TargetManager's default IFF color in RGBA order", async () => {
+    expect((await loadInitialBlock(fresh)).defaultIffColor).toEqual({
+      r: 255,
+      g: 0,
+      b: 0,
+      a: 255,
+    });
+    const initialBlock = await loadInitialBlock({
+      ...fresh,
+      defaultIffColor: [1, 2, 3, 4],
+    });
+    expect(initialBlock.defaultIffColor).toEqual({ r: 1, g: 2, b: 3, a: 4 });
+    expect(initialBlock.sensorGroupColors).toEqual([]);
+  });
+
+  it("reads a fresh connection's mission CRC as unsigned", async () => {
+    expect((await loadInitialBlock(fresh)).missionCRC).toBe(0xffffffff);
+  });
+
+  it("reads the client, then the server ProcessList state, unaligned", async () => {
+    // exogen_Harvester.rec's clocks.
+    const client: ProcessListState = {
+      dirty: true,
+      currentTag: 37917,
+      lastTick: 9869024,
+      lastTime: 9869004,
+      lastDelta: 20,
+    };
+    const server: ProcessListState = {
+      dirty: false,
+      currentTag: 0,
+      lastTick: 9868992,
+      lastTime: 9869004,
+      lastDelta: 0,
+    };
+    const initialBlock = await loadInitialBlock({
+      ...fresh,
+      processLists: [client, server],
+    });
+    expect(initialBlock.clientProcessList).toEqual(client);
+    expect(initialBlock.serverProcessList).toEqual(server);
+    expect(initialBlock.phase2Valid).toBe(true);
+    expect(initialBlock.phase2TrailingBits).toBeGreaterThanOrEqual(8);
+    expect(initialBlock.phase2TrailingBits).toBeLessThan(16);
+  });
+
+  it("omits the ProcessList state when phase 2 stops before it", async () => {
+    const initialBlock = await loadInitialBlock({
+      ...fresh,
+      controlObjectGhostIndex: 5,
+    });
+    expect(initialBlock.phase2Error).toMatch(/control object ghost 5/);
+    expect(initialBlock.clientProcessList).toBeUndefined();
+    expect(initialBlock.serverProcessList).toBeUndefined();
+  });
+
+  it("keeps the ProcessList state of an invalid block that reads to the end", async () => {
+    const initialBlock = await loadInitialBlock({ ...fresh, missionName: "" });
+    expect(initialBlock.phase2Valid).toBe(false);
+    expect(initialBlock.phase2Error).toBeUndefined();
+    expect(initialBlock.clientProcessList).toEqual(FRESH_PROCESS_LIST);
+    expect(initialBlock.serverProcessList).toEqual(FRESH_PROCESS_LIST);
+  });
+});
+
+describe("info blocks", () => {
+  it("read $firstPerson from byte 0 alone, then the camera FOV", async () => {
+    const info = (head: number[], fov: number) => {
+      const payload = Buffer.alloc(8);
+      payload.set(head);
+      payload.writeFloatLE(fov, 4);
+      return demoBlock(BlockTypeInfo, payload);
+    };
+    // Real recordings leave bytes 1-3 as uninitialized stack.
+    const parser = new DemoParser(
+      buildDemoFile(
+        buildInitialBlock({
+          lastSendSeq: 0,
+          highestAckedSeq: 0,
+          notifyCount: 0,
+        }),
+        Buffer.concat([info([1, 255, 148, 88], 90), info([0, 32, 62, 6], 120)]),
+      ),
+    );
+    await parser.load();
+    expect(parser.nextBlock()?.parsed).toEqual({
+      firstPerson: true,
+      cameraFov: 90,
+    });
+    expect(parser.nextBlock()?.parsed).toEqual({
+      firstPerson: false,
+      cameraFov: 120,
+    });
+  });
+});
+
 /** One ordered sensor-group event, followed by empty ghosts. */
 function sensorGroupPacket(sequence: number, group: number): Buffer {
   const w = new BitWriter();
@@ -148,10 +326,7 @@ function sensorGroupPacket(sequence: number, group: number): Buffer {
     .writeInt(sequence & 127, 7);
   w.writeInt(15, 6).writeInt(group, 5);
   w.writeFlag(false).writeFlag(false); // ordered events end, no ghosts
-  const bytes = w.finish();
-  const header = Buffer.alloc(2);
-  header.writeUInt16LE(bytes.length);
-  return Buffer.concat([header, bytes]);
+  return demoBlock(BlockTypePacket, w.finish());
 }
 
 describe("saved ordered event queue", () => {

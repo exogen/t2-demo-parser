@@ -1,5 +1,6 @@
 import type { MoveData } from "./ghostDataTypes.js";
 import type { ParsedData } from "./ClassRegistry.js";
+import type { Color4 } from "./dataTypes.js";
 
 /** Ident string at the start of every .rec file (checked on playback). */
 export const DemoIdentString = "Tribes2 Recording";
@@ -241,9 +242,12 @@ export interface Move {
 }
 
 /**
- * Type 3 block, written by GameConnection::readPacket right after each
- * received packet (FUN_005fb9b0): the `$firstPerson` flag and the control
- * camera FOV, replayed through setControlCameraFov on playback.
+ * Type 3 block: the `$firstPerson` flag and the control camera FOV,
+ * replayed through setControlCameraFov on playback. The client's
+ * GameConnection::readPacket (FUN_005fb9f0 → FUN_005fb9b0) writes one
+ * before applying each dispatched packet — an accepted DataPacket with a
+ * new sequence number — so it follows that packet's Packet block. Pings,
+ * acks, duplicates and rejected packets get a Packet block but no Info.
  */
 export interface InfoBlock {
   /** Byte 0 of the block. The engine writes a bool through a 4-byte slot;
@@ -429,6 +433,40 @@ export interface PathManagerEntry {
   }[];
 }
 
+/**
+ * A ProcessList's tick state, as the demo start block saves it
+ * (FUN_00602100 writes it, FUN_006021b0 reads it). Times are Sim
+ * milliseconds on the recording client's clock.
+ */
+export interface ProcessListState {
+  /**
+   * mDirty: the list must be re-sorted into process order before its next
+   * tick.
+   */
+  dirty: boolean;
+  /**
+   * mCurrentTag: the stamp of the latest process-order sort.
+   */
+  currentTag: number;
+  /**
+   * mLastTick: the tick time the list has advanced to, always a multiple
+   * of 32: lastTime rounded up on the client list, down on the server
+   * list. A backlogged client list advances it without simulating.
+   */
+  lastTick: number;
+  /**
+   * mLastTime: time the list was last advanced to.
+   */
+  lastTime: number;
+  /**
+   * mLastDelta: on the client list, lastTick - lastTime (the interpolation
+   * remainder) as of the last advance that simulated; it goes stale while
+   * the connection is backlogged (every queued move simulated and 30 or
+   * more queued). The server list never sets it.
+   */
+  lastDelta: number;
+}
+
 export interface InitialBlockData {
   taggedStrings: Map<number, string>;
   dataBlockHeaders: DataBlockHeader[];
@@ -436,11 +474,67 @@ export interface InitialBlockData {
   dataBlocks: Map<number, ParsedDataBlock>;
   /** Initial $firstPerson state from GameConnection::writeDemoStartBlock. */
   firstPerson: boolean;
+  /**
+   * mCameraPos: the control camera's first-to-third-person blend, from 0
+   * (first person) to 1 (third person).
+   */
+  cameraPos: number;
+  /**
+   * mCameraSpeed: how fast cameraPos changes, per second (10 on every
+   * connection).
+   */
+  cameraSpeed: number;
+  /**
+   * mLastMoveAck: the index of the first move the server has not yet
+   * acknowledged (every lower one has been). readPacket pops the queued
+   * moves below it, so between packets it equals firstMoveIndex.
+   */
+  lastMoveAck: number;
+  /**
+   * mLastClientMove: the index of the next queued move the client's own
+   * simulation will process.
+   */
+  lastClientMove: number;
+  /**
+   * mFirstMoveIndex: the move index of `moves[0]`.
+   */
+  firstMoveIndex: number;
+  /**
+   * mSensorGroup: the connection's sensor group, which selects the IFF
+   * colors it sees. Later changes arrive as SetSensorGroupEvents.
+   */
+  sensorGroup: number;
+  /**
+   * The six fields from cameraPos to sensorGroup as raw U32s, in stream
+   * order (cameraPos and cameraSpeed as F32 bit patterns).
+   *
+   * @deprecated Use the named fields.
+   */
   connectionFields: number[];
+  /**
+   * mTargetVisibleMask: the server's record of the 512 target visibility
+   * bits it last sent for the connection's sensor group, which its
+   * visibility updates are diffed against. Clients never use it, so
+   * recordings made by Tribes2.exe store zeros.
+   */
+  targetVisibleMask: number[];
+  /**
+   * @deprecated Use targetVisibleMask.
+   */
   stateArray: number[];
-  /** Queued client moves (GameConnection::mMoveList), starting at connectionFields[4]. */
+  /**
+   * Queued client moves (GameConnection::mMoveList), starting at
+   * firstMoveIndex.
+   */
   moves: MoveData[];
   demoValues: string[];
+  /**
+   * The TargetManager's default IFF color (255, 0, 0, 255 unless a demo
+   * changed it). SensorGroupColorEvent entries equal to the sender's
+   * default are sent as "default" and decoded with the receiver's, which
+   * Tribes2.exe overwrites with this value when it loads a demo.
+   */
+  defaultIffColor: Color4;
   sensorGroupColors: SensorGroupColor[];
   targetEntries: TargetEntry[];
   connectionState: ConnectionProtocolState;
@@ -459,7 +553,22 @@ export interface InitialBlockData {
    *  precede the first in-stream compression-point update. */
   initialCompressionPoint?: { x: number; y: number; z: number };
   missionName: string;
+  /**
+   * mMissionCRC: the server's CRC of the mission file, delivered by
+   * SetMissionCRCEvent (0xffffffff on a fresh connection). Tribes2.exe
+   * names and validates its lighting/*.ml caches with it.
+   */
   missionCRC: number;
+  /**
+   * The client ProcessList's tick state. Absent when phase 2 stopped
+   * before reaching it; only meaningful when phase2Valid is true.
+   */
+  clientProcessList?: ProcessListState;
+  /**
+   * The server ProcessList's tick state. Absent when phase 2 stopped
+   * before reaching it; only meaningful when phase2Valid is true.
+   */
+  serverProcessList?: ProcessListState;
   phase2TrailingBits?: number;
   phase2Valid?: boolean;
   phase2Error?: string;

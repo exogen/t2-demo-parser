@@ -54,7 +54,7 @@ everything the client received from the server during the recording.
   mission/map name.
 - **Block stream**: deflate-compressed sequence of blocks, each tagged with a
   type and size. Block types are packets (server-to-client network data), move
-  inputs (player controls), info blocks (tick/FOV), and send-packet triggers.
+  inputs (player controls), info blocks (firstPerson/FOV), and send-packet triggers.
 - **Ghosts**: Torque's term for networked game objects. The server creates,
   updates, and destroys ghosts; each has a class (Player, Turret, Projectile,
   etc.) and an index (0–1023). Ghost state is delta-compressed with bitmasks.
@@ -185,9 +185,10 @@ interface InitialBlockData {
   dataBlockHeaders: DataBlockHeader[];
 
   // Player/team state
-  scoreEntries: ScoreEntry[];
   targetEntries: TargetEntry[];
+  defaultIffColor: Color4; // TargetManager default IFF color (255, 0, 0, 255)
   sensorGroupColors: SensorGroupColor[];
+  sensorGroup: number; // the recording connection's sensor group
 
   // Connection state
   connectionState: ConnectionProtocolState;
@@ -205,20 +206,36 @@ interface InitialBlockData {
   // position), seeding compressed-point decodes in the first packets.
   initialCompressionPoint?: { x: number; y: number; z: number };
   firstPerson: boolean;
+  cameraPos: number; // first-to-third-person blend, 0 = first person
+  cameraSpeed: number; // cameraPos change per second (always 10)
+
+  // Queued client moves
+  moves: MoveData[]; // starting at firstMoveIndex
+  firstMoveIndex: number;
+  lastMoveAck: number; // first move index the server hasn't acknowledged
+  lastClientMove: number; // next queued move the client will simulate
 
   // Mission info
   missionName: string;
-  missionCRC: number;
+  missionCRC: number; // from SetMissionCRCEvent; 0xffffffff until it arrives
+
+  // Client and server ProcessList tick state (absent if phase 2 stopped
+  // before them; meaningful only when phase2Valid)
+  clientProcessList?: ProcessListState;
+  serverProcessList?: ProcessListState;
 
   // Misc
   taggedStrings: Map<number, string>;
   demoValues: string[];
-  connectionFields: number[];
-  stateArray: number[];
+  targetVisibleMask: number[]; // server-side state; zeros in recordings
   pathManager: PathManagerEntry[];
   notifyCount: number;
   nextRecvEventSeq: number;
   ghostingSequence: number;
+
+  // Deprecated
+  connectionFields: number[]; // raw cameraPos…sensorGroup U32s
+  stateArray: number[]; // same as targetVisibleMask
 
   // Validation
   phase2Valid?: boolean;
@@ -227,6 +244,14 @@ interface InitialBlockData {
   // Seeded state Tribes2.exe would crash on during playback (always empty
   // for recordings made by the game; see freshConnectionProtocolState).
   warnings: string[];
+}
+
+interface ProcessListState {
+  dirty: boolean; // re-sort into process order before the next tick
+  currentTag: number; // stamp of the latest process-order sort
+  lastTick: number; // ms tick time advanced to, a multiple of 32
+  lastTime: number; // ms time the list was last advanced to
+  lastDelta: number; // client: lastTick - lastTime, stale while backlogged; server: 0
 }
 ```
 
@@ -247,7 +272,9 @@ interface DemoBlock {
   parseError?: string; // Set if decoding threw (a parser bug)
 }
 
-// Type 3 block: written after every received packet, replayed through
+// Type 3 block: written before each dispatched packet (an accepted
+// DataPacket with a new sequence number) is applied — never for pings,
+// acks, duplicates or rejected packets — and replayed through
 // setControlCameraFov on playback.
 interface InfoBlock {
   firstPerson: boolean; // $firstPerson (byte 0; the other 3 bytes are garbage)
@@ -763,7 +790,7 @@ import {
   BlockTypePacket, // 0 — network packet
   BlockTypeSendPacket, // 1 — send-packet trigger (no data)
   BlockTypeMove, // 2 — 64-byte player input
-  BlockTypeInfo, // 3 — 8-byte timing/FOV
+  BlockTypeInfo, // 3 — 8-byte firstPerson/FOV
   MoveTickMs, // 32 — one Move block per simulation tick
   DemoIdentString, // "Tribes2 Recording"
   DemoProtocolVersion, // 0x330004 (build 25034)
@@ -829,15 +856,13 @@ const durationStr = `${Math.floor(durationMs / 60000)}m${Math.floor(
 // Mission / map name
 const mission = initialBlock.missionName; // e.g. "Rollercoaster"
 
-// Game mode / mission type — look in DemoValues
-// $DemoValue_0 is typically the game mode (e.g. "CTFGame")
-const gameMode = initialBlock.demoValues[0];
-
-// Teams and players
-for (const score of initialBlock.scoreEntries) {
-  console.log(
-    `Team ${score.teamId}: client ${score.clientId}, score ${score.score}`,
-  );
+// Teams and players: the PLAYERLIST section of the DemoValues (written by
+// saveDemoSettings) is a count after the MISC row, then one row per player.
+// Names keep the game's markup bytes.
+const playerCount = Number(initialBlock.demoValues[1]) || 0;
+for (const row of initialBlock.demoValues.slice(2, 2 + playerCount)) {
+  const [name, , clientId, , teamId, score] = row.split("\t");
+  console.log(`${name}: team ${teamId}, client ${clientId}, score ${score}`);
 }
 
 // Player names from the target table
