@@ -36,14 +36,27 @@ function isIndexedEntryArray(value: unknown): value is Array<{
  * an update only includes changed entries, so they merge by index with
  * entry replacement. (An images entry with `dataBlockId: 0` must replace
  * rather than delete — "slot cleared" is meaningful state.) Positionally
- * complete arrays (wheels) replace wholesale. Create-only fields survive
- * because the create's data is the merge base.
+ * complete arrays (wheels) replace wholesale. Player action masks replace
+ * the whole action group, including the optional animation position; an
+ * unmount also resets that group. Create-only fields survive because the
+ * create's data is the merge base.
  */
 export function mergeGhostParsedData(
   base: ParsedData,
   update: ParsedData,
 ): ParsedData {
   const merged: ParsedData = { ...base };
+  if (update.mountObject === -1) delete merged.mountNode;
+  if (update.mountObject === -1 || typeof update.action === "number") {
+    // Player::onUnmount resets to RootAnim. Player::unpackUpdate then
+    // applies any ActionMask after the mount update (Tribes2.exe 0x005db2d0).
+    // A new action must not inherit the previous optional animation position.
+    delete merged.action;
+    delete merged.actionHoldAtEnd;
+    delete merged.actionAtEnd;
+    delete merged.actionFirstPerson;
+    delete merged.actionAnimPos;
+  }
   for (const [key, value] of Object.entries(update)) {
     if (value === undefined) continue;
     const existing = merged[key];

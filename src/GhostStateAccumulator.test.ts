@@ -35,6 +35,87 @@ describe("mergeGhostParsedData", () => {
     });
   });
 
+  const mountedPlayer = {
+    dataBlockId: 161,
+    mountObject: 7,
+    mountNode: 2,
+    action: 16,
+    actionHoldAtEnd: true,
+    actionAtEnd: true,
+    actionFirstPerson: true,
+    actionAnimPos: 0.75,
+    armAction: 3,
+  };
+
+  it("clears the seat action and mount node when a player unmounts", () => {
+    expect(mergeGhostParsedData(mountedPlayer, { mountObject: -1 })).toEqual({
+      dataBlockId: 161,
+      mountObject: -1,
+      armAction: 3,
+    });
+    expect(mountedPlayer.action).toBe(16);
+    expect(mountedPlayer.mountNode).toBe(2);
+  });
+
+  it("applies a new action after an unmount in the same update", () => {
+    expect(
+      mergeGhostParsedData(mountedPlayer, {
+        mountObject: -1,
+        action: 20,
+        actionHoldAtEnd: true,
+        actionAtEnd: false,
+        actionFirstPerson: false,
+        actionAnimPos: 0.25,
+      }),
+    ).toEqual({
+      dataBlockId: 161,
+      mountObject: -1,
+      armAction: 3,
+      action: 20,
+      actionHoldAtEnd: true,
+      actionAtEnd: false,
+      actionFirstPerson: false,
+      actionAnimPos: 0.25,
+    });
+  });
+
+  it.each([false, true])(
+    "discards the previous action position when the next action omits it (atEnd=%s)",
+    (actionAtEnd) => {
+      const action = {
+        action: 20,
+        actionHoldAtEnd: true,
+        actionAtEnd,
+        actionFirstPerson: false,
+      };
+      const merged = mergeGhostParsedData(mountedPlayer, action);
+      expect(merged).toMatchObject(action);
+      expect(merged).not.toHaveProperty("actionAnimPos");
+      expect(merged.armAction).toBe(3);
+    },
+  );
+
+  it.each([0, 0.25])(
+    "keeps the new action's explicit position %s",
+    (actionAnimPos) => {
+      expect(
+        mergeGhostParsedData(mountedPlayer, {
+          action: 20,
+          actionHoldAtEnd: false,
+          actionAtEnd: false,
+          actionFirstPerson: false,
+          actionAnimPos,
+        }),
+      ).toMatchObject({ action: 20, actionAnimPos });
+    },
+  );
+
+  it("preserves action state when the update has no action or unmount", () => {
+    expect(
+      mergeGhostParsedData(mountedPlayer, { position: { x: 1, y: 2, z: 3 } }),
+    ).toMatchObject(mountedPlayer);
+  });
+
   it("merges indexed entry arrays by index with entry replacement", () => {
     const merged = mergeGhostParsedData(
       {
