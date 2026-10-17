@@ -3,6 +3,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { DemoParser } from "./DemoParser.js";
 import type {
+  ShapeBaseDataBlock,
   ELFProjectileDataBlock,
   EnergyProjectileDataBlock,
   LinearFlareProjectileDataBlock,
@@ -22,6 +23,24 @@ async function loadDataBlocks(file: string) {
   const { initialBlock } = await parser.load();
   return initialBlock.dataBlocks;
 }
+
+it("preserves the flag's slot 1 and the player's slots 0–2 in retail datablocks", async () => {
+  const blocks = [
+    ...(await loadDataBlocks("exogen_Katabatic_vpad.rec")).values(),
+  ];
+  const flag = blocks.find(
+    (db) => db.className === "ItemData" && db.data.shapeName === "flag.dts",
+  );
+  const player = blocks.find((db) => db.className === "PlayerData");
+  expect(
+    (flag?.data as ShapeBaseDataBlock)?.hudImages?.map((image) => image.index),
+  ).toEqual([1]);
+  expect(
+    (player?.data as ShapeBaseDataBlock)?.hudImages?.map(
+      (image) => image.index,
+    ),
+  ).toEqual([0, 1, 2]);
+});
 
 /**
  * Regression tests for projectile datablock field naming, which was

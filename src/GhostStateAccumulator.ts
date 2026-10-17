@@ -3,6 +3,7 @@ import { GhostMsgEndGhosting } from "./types.js";
 import type { GhostUpdate, PacketData } from "./types.js";
 import type { ParsedData } from "./ClassRegistry.js";
 import type { GhostAlwaysObjectEventData } from "./eventDataTypes.js";
+import type { ImageSlot } from "./ghostDataTypes.js";
 
 const debug = createDebug("t2-demo-parser:ghost-state");
 
@@ -82,6 +83,24 @@ export function mergeGhostParsedData(
  */
 export class GhostStateAccumulator {
   private ghosts = new Map<number, AccumulatedGhost>();
+  private netStrings: Map<number, string>;
+
+  /** Seed the connection's string table when starting from a saved snapshot. */
+  constructor(taggedStrings: Iterable<readonly [number, string]> = []) {
+    this.netStrings = new Map(taggedStrings);
+  }
+
+  private snapshotData(data: ParsedData): ParsedData {
+    const snapshot = structuredClone(data);
+    // Network string slots are reusable. Retain the resolved skin just as
+    // ShapeBase::unpackUpdate does, not a reference to the current table slot.
+    for (const image of (snapshot.images as ImageSlot[] | undefined) ?? []) {
+      if (image.skinTagIndex == null) continue;
+      image.skinName = this.netStrings.get(image.skinTagIndex) ?? "";
+      delete image.skinTagIndex;
+    }
+    return snapshot;
+  }
 
   applyPacket(parsed: PacketData): void {
     // Events apply before ghosts, matching packet layout (readEvents
@@ -89,7 +108,12 @@ export class GhostStateAccumulator {
     for (const event of parsed.events) {
       const data = event.parsedData;
       if (!data) continue;
-      if (
+      if (data.type === "NetStringEvent") {
+        if (typeof data.id !== "number") continue;
+        if (data.hasValue === false) this.netStrings.delete(data.id);
+        else if (typeof data.value === "string")
+          this.netStrings.set(data.id, data.value);
+      } else if (
         data.type === "GhostingMessageEvent" &&
         data.message === GhostMsgEndGhosting
       ) {
@@ -106,7 +130,7 @@ export class GhostStateAccumulator {
         if (typeof ghostAlways.classId === "number" && ghostAlways.objectData) {
           this.ghosts.set(ghostAlways.ghostIndex, {
             classId: ghostAlways.classId,
-            parsedData: structuredClone(ghostAlways.objectData),
+            parsedData: this.snapshotData(ghostAlways.objectData),
           });
         }
       }
@@ -121,7 +145,7 @@ export class GhostStateAccumulator {
       if (ghost.type === "create" && typeof ghost.classId === "number") {
         this.ghosts.set(ghost.index, {
           classId: ghost.classId,
-          parsedData: structuredClone(ghost.parsedData),
+          parsedData: this.snapshotData(ghost.parsedData),
         });
       } else if (ghost.type === "update") {
         const existing = this.ghosts.get(ghost.index);
@@ -132,12 +156,13 @@ export class GhostStateAccumulator {
         }
         existing.parsedData = mergeGhostParsedData(
           existing.parsedData,
-          structuredClone(ghost.parsedData),
+          this.snapshotData(ghost.parsedData),
         );
       }
     }
   }
 
+  /** Clear ghosts while retaining the connection's string table. */
   clear(): void {
     this.ghosts.clear();
   }

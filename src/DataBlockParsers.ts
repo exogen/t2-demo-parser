@@ -256,6 +256,7 @@ function shapeBaseDataUnpack(bs: BitStream): ShapeBaseDataBlock {
     const hasEnemy = bs.readFlag();
     const enemyName = hasEnemy ? bs.readString() : undefined; // → this + i*4 + 0x194
     const img: HudImageEntry = {
+      index: i,
       friendlyName,
       enemyName,
       renderCenter: bs.readFlag(), // → this + i + 0x1f4

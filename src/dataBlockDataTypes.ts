@@ -5,6 +5,8 @@ import type { Vec3, Color3, Color4, AffineTransform } from "./dataTypes.js";
 // ---------------------------------------------------------------------------
 
 export type HudImageEntry = {
+  /** HUD slot (0–7), corresponding to a target's render-mask bit. */
+  index: number;
   friendlyName: string;
   enemyName?: string;
   renderCenter: boolean;

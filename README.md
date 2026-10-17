@@ -699,6 +699,17 @@ accumulator.clear();
 whose entries carry a numeric `index` (threads, images, sounds) merge
 sparsely by index; other values are last-write-wins.
 
+The accumulator resolves mounted-image `skinTagIndex` references into
+`skinName` when each update arrives, so later reuse of a network string
+slot cannot change an existing image's skin. When starting mid-stream,
+pass the snapshot's tagged strings to the constructor:
+`new GhostStateAccumulator(initialBlock.taggedStrings)`. `clear()` and
+EndGhosting clear ghosts but retain connection-lifetime strings; create a
+new accumulator for a new connection.
+
+Datablock `hudImages` entries also carry their original slot `index`
+(0–7). Only populated slots are included in the array.
+
 ---
 
 ### `BitStream`

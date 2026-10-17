@@ -307,7 +307,9 @@ describe("seeded parser round-trip", () => {
           // Seed from the demo's initial ghosts, mirroring how the demo
           // pipeline seeds its tracker. (A live relay connection has no
           // initial block — it sees every create from connect onward.)
-          const accumulator = new GhostStateAccumulator();
+          const accumulator = new GhostStateAccumulator(
+            initialBlock.taggedStrings,
+          );
           accumulator.applyPacket({
             events: [],
             ghosts: initialBlock.initialGhosts,
