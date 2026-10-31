@@ -7,9 +7,11 @@ client (build 25034, Torque engine), and parses the same packet format
 arriving from a live connection (see `createLiveParser`).
 
 Designed for use in browser-based replay viewers. The async API keeps the main
-thread responsive: in browsers, decompression runs in a Web Worker via
-[fflate](https://github.com/101arrowz/fflate), and blocks are parsed lazily
-one at a time.
+thread responsive: decompression is asynchronous (the runtime's native
+`DecompressionStream` where available, otherwise
+[fflate](https://github.com/101arrowz/fflate) in a Web Worker), and blocks
+are parsed lazily one at a time. Incremental parsing (`push()`) inflates
+synchronously with fflate.
 
 Requires Node.js 18 or newer (or any modern browser).
 
@@ -127,6 +129,14 @@ actually processed, which may be less than `count` if the stream runs out.
 Reset the block stream to the beginning, re-seed the ghost tracker from the
 initial block's ghosts, and create a fresh `PacketParser`. Allows replaying
 the entire block stream from scratch.
+
+#### `fork(): DemoParser`
+
+A new, independent parser at the first block, sharing this one's header,
+initial block and decompressed block stream: nothing is decompressed again.
+Use it when several consumers each need their own pass over one recording.
+The block stream must be complete; an incremental parser forks only after
+`finish()`.
 
 #### `async parseFullDemo(): Promise<DemoFile>`
 

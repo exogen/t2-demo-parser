@@ -1,4 +1,5 @@
-import { inflate, Inflate } from "fflate";
+import { Inflate } from "fflate";
+import { inflateRaw } from "./inflateRaw.js";
 import createDebug from "debug";
 import type { MoveData } from "./ghostDataTypes.js";
 import { BitStream } from "./BitStream.js";
@@ -296,14 +297,7 @@ export class DemoParser {
       const compressedData = this.buffer.subarray(this.offset);
       debug("compressed block stream: %d bytes", compressedData.length);
 
-      const decompressedData = await new Promise<Uint8Array>(
-        (resolve, reject) => {
-          inflate(compressedData, (err, data) => {
-            if (err) reject(err);
-            else resolve(data);
-          });
-        },
-      );
+      const decompressedData = await inflateRaw(compressedData);
       debug("decompressed block stream: %d bytes", decompressedData.length);
 
       this._decompressedData = decompressedData;
@@ -533,6 +527,32 @@ export class DemoParser {
     }
 
     return block;
+  }
+
+  /**
+   * An independent parser over the same recording, at its first block: it
+   * shares this parser's header, initial block and decompressed block
+   * stream, so nothing is inflated again, but has its own cursor, ghost
+   * tracker and packet state (as after reset()). The block stream must be
+   * complete: an incremental parser forks only after finish().
+   */
+  fork(): DemoParser {
+    if (!this._loaded) throw new Error("must call load() first");
+    if (!this._complete)
+      throw new Error("can't fork an incremental parser before finish()");
+    const fork = new DemoParser(this.buffer, {
+      ignoreProtocolVersion: this._ignoreProtocolVersion,
+      packetProtocolVersion: this._packetProtocolVersion,
+      haltOnFault: this._haltOnFault,
+    });
+    fork.offset = this.offset;
+    fork._header = this._header;
+    fork._initialBlock = this._initialBlock;
+    fork._decompressedData = this._decompressedData;
+    fork._decompressedView = this._decompressedView;
+    fork.setupPacketParser(this._initialBlock!);
+    fork._loaded = true;
+    return fork;
   }
 
   /** Capture a block boundary without copying the recording or inflater. */
