@@ -1787,14 +1787,14 @@ function skyUnpackUpdate(
 
     // Initial wind velocity vector
     result.windVelocity = bs.readPoint3F();
-    result.stormCurrent = bs.readF32();
+    result.stormCurrent = bs.readS32(); // Fog volume selector (-1 = all).
 
     if (bs.readFlag()) {
       result.stormInit = {
         startPct: bs.readF32(),
         duration: bs.readF32(),
-        indexOrMode: bs.readF32(),
-        startTime: bs.readF32(),
+        indexOrMode: bs.readU32(), // Fog transition direction.
+        startTime: bs.readU32(), // Elapsed milliseconds.
         targetPct: bs.readF32(),
       };
     }
@@ -1816,25 +1816,25 @@ function skyUnpackUpdate(
     result.fogDistance = bs.readF32();
   }
 
-  // Storm/falloff mask
+  // Storm clouds mask (direction and duration).
   if (bs.readFlag()) {
-    result.stormType = bs.readF32();
+    result.stormType = bs.readU32();
     result.stormMagnitude = bs.readF32();
   }
 
-  // Storm timeline mask
+  // Storm fog mask (target density, duration, volume selector).
   if (bs.readFlag()) {
     result.stormTimeline = {
       startPct: bs.readF32(),
       duration: bs.readF32(),
-      indexOrMode: bs.readF32(),
+      indexOrMode: bs.readS32(),
     };
   }
 
-  // Storm cloud profile mask
+  // Real fog mask (enabled, maximum density, minimum density, speed).
   if (bs.readFlag()) {
     result.stormCloudProfile = {
-      enabled: bs.readF32(),
+      enabled: bs.readS32(),
       value0: bs.readF32(),
       value1: bs.readF32(),
       value2: bs.readF32(),
@@ -1870,7 +1870,8 @@ function lightningUnpackUpdate(
     result.color = { r: bs.readF32(), g: bs.readF32(), b: bs.readF32() };
     result.fadeColor = { r: bs.readF32(), g: bs.readF32(), b: bs.readF32() };
     result.useFog = bs.readInt(8) !== 0; // bool read as U8
-    result.strikesPerMinute = bs.readF32();
+    // Lightning::processTick (FUN_00627d30) uses the word at +0x284 as U32.
+    result.strikesPerMinute = bs.readU32();
   }
   return result;
 }
@@ -2076,12 +2077,15 @@ function precipitationUnpackUpdate(
     result.minVelocity = bs.readF32();
     result.maxVelocity = bs.readF32();
     result.maxDrops = bs.readS32();
-    result.maxRadius = bs.readF32();
+    // Retail stores maxRadius as an S32 at +0x3502c, including -1.
+    result.maxRadius = bs.readS32();
     // Inner flag: storm initialization data (3 F32s)
     if (bs.readFlag()) {
-      result.stormLastTime = bs.readF32();
-      result.stormTime = bs.readF32();
-      result.stormEndPercentage = bs.readF32();
+      result.stormInitial = {
+        elapsedTicks: bs.readF32(),
+        endPercentage: bs.readF32(),
+        durationSeconds: bs.readF32(),
+      };
     }
   }
 
@@ -2092,8 +2096,10 @@ function precipitationUnpackUpdate(
 
   // StormMask
   if (bs.readFlag()) {
-    result.stormTime = bs.readF32();
-    result.stormEndPercentage = bs.readF32();
+    result.stormUpdate = {
+      endPercentage: bs.readF32(),
+      durationSeconds: bs.readF32(),
+    };
   }
 
   // PercentageMask

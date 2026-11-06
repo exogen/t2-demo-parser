@@ -558,11 +558,14 @@ export type SkyGhostData = {
     speed: number;
   }>;
   windVelocity?: Vec3;
+  /** Initial fog volume selector (-1 for all volumes). */
   stormCurrent?: number;
   stormInit?: {
     startPct: number;
     duration: number;
+    /** Fog transition direction enum. */
     indexOrMode: number;
+    /** Elapsed storm time on the server, in milliseconds. */
     startTime: number;
     targetPct: number;
   };
@@ -570,13 +573,19 @@ export type SkyGhostData = {
   stormFogOn?: boolean;
   visibleDistance?: number;
   fogDistance?: number;
+  /** Cloud transition direction enum. */
   stormType?: number;
+  /** Cloud transition duration in authored seconds. */
   stormMagnitude?: number;
+  /** Sparse fog transition update. */
   stormTimeline?: {
+    /** Target fog density. */
     startPct: number;
     duration: number;
+    /** Fog volume selector (-1 for all volumes). */
     indexOrMode: number;
   };
+  /** Real fog oscillation enable, density range, and speed. */
   stormCloudProfile?: {
     enabled: number;
     value0: number;
@@ -642,10 +651,13 @@ export type PrecipitationGhostData = GameBaseGhostData & {
   maxVelocity?: number;
   maxDrops?: number;
   maxRadius?: number;
-  stormLastTime?: number;
-  stormTime?: number;
-  stormEndPercentage?: number;
+  stormInitial?: {
+    elapsedTicks: number;
+    endPercentage: number;
+    durationSeconds: number;
+  };
   stormPrecipitationOn?: boolean;
+  stormUpdate?: { endPercentage: number; durationSeconds: number };
   percentageUpdate?: number;
 };
 
