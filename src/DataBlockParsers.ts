@@ -423,6 +423,7 @@ function shapeBaseImageDataUnpack(bs: BitStream): ShapeBaseImageDataBlock {
     const sound = readDataBlockRef(bs);
 
     const state: ImageState = {
+      index: i,
       name,
       transitionOnNotLoaded,
       transitionOnLoaded,

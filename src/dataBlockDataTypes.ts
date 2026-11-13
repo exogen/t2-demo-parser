@@ -24,6 +24,8 @@ export type HudImageEntry = {
  * remap table to compensate.
  */
 export type ImageState = {
+  /** Original zero-based state slot (0–30); unnamed wire slots are omitted. */
+  index: number;
   name: string;
   transitionOnNotLoaded: number;
   transitionOnLoaded: number;
