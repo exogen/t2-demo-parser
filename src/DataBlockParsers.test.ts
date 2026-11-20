@@ -4,6 +4,7 @@ import * as path from "path";
 import { DemoParser } from "./DemoParser.js";
 import type {
   ShapeBaseDataBlock,
+  DebrisDataBlock,
   ELFProjectileDataBlock,
   EnergyProjectileDataBlock,
   LinearFlareProjectileDataBlock,
@@ -146,6 +147,8 @@ describe("projectile datablock field decoding", () => {
       }
     }
     expect(bolt, "retail EnergyBolt datablock").toBeDefined();
+    expect(bolt!.emitterDelay).toBe(-1);
+    expect(bolt!.bubbleEmitTime).toBe(1);
     // blaster.cs: binary-verified names (initPersistFields FUN_00694b40,
     // unpackData FUN_00694d80) — these were previously mislabeled with
     // ELF-style beam field names.
@@ -267,6 +270,21 @@ describe("projectile datablock field decoding", () => {
     expect(checked).toBeGreaterThan(3);
   });
 
+  it("decodes the retail chaingun casing's fade and radius-mass flags", async () => {
+    const blocks = await loadDataBlocks("exogen_Harvester.rec");
+    const casing = [...blocks.values()].find(
+      ({ className, data }) =>
+        className === "DebrisData" &&
+        (data as DebrisDataBlock).shapeName ===
+          "weapon_chaingun_ammocasing.dts",
+    );
+    expect(casing?.data).toMatchObject({
+      fade: true,
+      useRadiusMass: false,
+      numBounces: 3,
+    });
+  });
+
   it("decodes retail ChaingunBullet tracer fields exactly", async () => {
     const dataBlocks = await loadDataBlocks("exogen_Katabatic_vpad.rec");
     let bullet: TracerProjectileDataBlock | undefined;
@@ -292,8 +310,7 @@ describe("projectile datablock field decoding", () => {
     expect(bullet!.explodeOnDeath).toBe(false);
     // Chainguns are the only retail weapons with doDynamicClientHits.
     expect(bullet!.doDynamicClientHits).toBe(true);
-    // activateDelayMS = -1 (retail default) read as U32.
-    expect(bullet!.activateDelayMS).toBe(0xffffffff);
+    expect(bullet!.activateDelayMS).toBe(-1);
     expect(bullet!.tracerLength).toBe(30);
     expect(bullet!.tracerMinPixels).toBe(6);
     expect(bullet!.tracerWidth).toBeCloseTo(0.2, 5);

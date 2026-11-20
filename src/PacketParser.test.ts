@@ -264,6 +264,40 @@ describe("PacketParser parse faults", () => {
 });
 
 describe("packet checkpoints", () => {
+  it("upgrades legacy weapon datablocks exactly once across checkpoint restores", () => {
+    const { parser } = makeParser({});
+    const state = {
+      ...parser.saveState(),
+      weaponDataBlockFieldsCorrected: false,
+      dataBlockDataMap: new Map<number, Record<string, unknown>>([
+        [1, { fade: false, useRadiusMass: true, gravModifier: 1 }],
+        [
+          2,
+          {
+            states: [{ reload: false, direction: true, scaleAnimation: false }],
+          },
+        ],
+        [3, { fizzleUnderwaterMS: 4294967295, activateDelayMS: 4294967295 }],
+      ]),
+    };
+    parser.restoreState(state);
+    const current = parser.saveState();
+    expect(current.dataBlockDataMap?.get(1)).toMatchObject({
+      fade: true,
+      useRadiusMass: false,
+    });
+    expect(current.dataBlockDataMap?.get(2)?.states).toEqual([
+      { direction: false, scaleAnimation: true, shockwave: false },
+    ]);
+    expect(current.dataBlockDataMap?.get(3)).toMatchObject({
+      fizzleUnderwaterMS: -1,
+      activateDelayMS: -1,
+    });
+    expect(state.dataBlockDataMap.get(1)?.fade).toBe(false);
+    parser.restoreState(current);
+    expect(parser.getDataBlockDataMap()).toEqual(current.dataBlockDataMap);
+  });
+
   it("restores both the fault latch and protocol state around a bad packet", () => {
     const { parser } = makeParser({});
     const before = parser.saveState();

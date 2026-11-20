@@ -42,9 +42,9 @@ export type ImageState = {
   waitForTimeout: boolean;
   fire: boolean;
   ejectShell: boolean;
+  shockwave: boolean;
   scaleAnimation: boolean;
   direction: boolean;
-  reload: boolean;
   energyDrain?: number;
   loaded: number;
   spin: number;
@@ -408,8 +408,8 @@ export type ItemDataBlock = ShapeBaseDataBlock & {
 
 export type ProjectileDataBlock = GameBaseDataBlock & {
   projectileShapeName?: string;
-  faceViewerLinkTime?: number;
-  lifetime?: number;
+  emitterDelay?: number;
+  bubbleEmitTime?: number;
   faceViewer?: boolean;
   scale?: Vec3;
   baseEmitter?: number | null;

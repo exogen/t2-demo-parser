@@ -98,7 +98,8 @@ other versions too, and their block formats are not guaranteed to match; pass
 `{ ignoreProtocolVersion: true }` to try anyway. A buffer too short to hold
 the initial block throws a `RangeError`.
 
-Idempotent: calling `load()` again returns the cached result.
+Overlapping `load()` calls share one parse and decompression. Later calls return
+the cached result.
 
 ```typescript
 interface LoadResult {
@@ -133,8 +134,9 @@ the entire block stream from scratch.
 #### `fork(): DemoParser`
 
 A new, independent parser at the first block, sharing this one's header,
-initial block and decompressed block stream: nothing is decompressed again.
-Use it when several consumers each need their own pass over one recording.
+initial block, and decompressed block stream. The fork copies the current
+parser bindings. Use it when several consumers each need their own pass over
+one recording.
 The block stream must be complete; an incremental parser forks only after
 `finish()`.
 
@@ -279,7 +281,7 @@ interface DemoBlock {
   size: number; // Payload size in bytes
   data: Uint8Array; // Raw payload
   parsed?: PacketData | Move | InfoBlock;
-  parseError?: string; // Set if decoding threw (a parser bug)
+  parseError?: string; // Error message if block decoding throws
 }
 
 // Type 3 block: written before each dispatched packet (an accepted
@@ -1074,50 +1076,7 @@ DEBUG=t2-demo-parser:blocks npx t2-demo-parser demo.rec
 DEBUG=t2-demo-parser:events,t2-demo-parser:ghosts,t2-demo-parser:ghost-tracker npx t2-demo-parser demo.rec
 ```
 
-### Known limitations
-
-- One archived demo (a 2000s-era recording) carries a TerrainBlock
-  `GhostAlwaysObjectEvent` after a mission change whose payload holds 377 more
-  bits than build 25034's `TerrainBlock::unpackUpdate` reads (a shared-prefix
-  string with the terrain's material list, then 91 unidentified bits). Seven
-  other mission-change TerrainBlock events in other demos match the binary
-  exactly, so this is a conditional extension of an unidentified client
-  build. The parser faults cleanly at that packet instead of guessing.
-- `SimVoiceStreamEvent` follows the binary's layout (which differs from the
-  V12 source), but no available demo contains voice traffic, so it is
-  verified against the disassembly only.
-
 ---
-
-## Upgrading from 2.x
-
-Breaking changes in this version:
-
-- **Halt on fault.** `PacketParser` stops after the first `parseFault`
-  (`haltOnFault: false` restores the old behaviour).
-- **Header validation.** `DemoParser.load()` throws on a wrong ident string or
-  protocol version (`ignoreProtocolVersion: true` to override).
-- **Timeline timestamps** come from Move ticks (32ms) instead of an even
-  spread of packets over the demo length; `tickIntervalMs` is now 32.
-- Removed fields: `GhostEntry.state`, `ConnectionContext.currentGhostIndex`,
-  `SimDataBlockEventData._payloadBitPos` / `_needsClassParser`,
-  `VehicleGhostData._controlledEarlyReturn`, `DebrisDataBlock.minSpinSpeed_dup`
-  / `maxSpinSpeed_dup` (the second wire copy now lands in `minSpinSpeed` /
-  `maxSpinSpeed`, as on the client). `GhostAlwaysObjectEventData._hasObjectData`
-  is now `hasObjectData`; `DebrisGhostData.objectRef2` is folded into
-  `objectRefs` (three entries); `ShapeBaseDataBlock.jetEffect` is `null`
-  rather than `undefined` when absent.
-- `SimVoiceStreamEventData` now reflects the binary's wire format
-  (`sequence`, `codecId`, `streamId`, `clientId`, `partial`, `frameCount`,
-  `audioData` or `frames`).
-- A `SimDataBlockEvent` with no parser (or whose payload fails) now fails the
-  event (and the packet) instead of returning silently misaligned.
-- Parsed-data types are now type aliases without index signatures; property
-  access on them is checked.
-- `getAllGhosts()`, `getGhostCatalog()`, and `getDataBlockDataMap()` return
-  read-only maps; `getCompressionPoint()` returns a copy.
-- `ShapeBase` ghosts' `readPacketData` reads energy + recharge only (it was
-  bound to the Vehicle reader).
 
 ## Supported classes
 

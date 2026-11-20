@@ -1,5 +1,9 @@
 import createDebug from "debug";
-import { GhostMsgEndGhosting } from "./types.js";
+import {
+  GhostMsgEndGhosting,
+  NetObjectClassFirst,
+  NetObjectClassNames,
+} from "./types.js";
 import type { GhostUpdate, PacketData } from "./types.js";
 import type { ParsedData } from "./ClassRegistry.js";
 import type { GhostAlwaysObjectEventData } from "./eventDataTypes.js";
@@ -10,6 +14,13 @@ const debug = createDebug("t2-demo-parser:ghost-state");
 interface AccumulatedGhost {
   classId: number;
   parsedData: ParsedData;
+  linkTargetField?: "targetObject" | "repairingObject";
+}
+
+function clearBeamSource(data: ParsedData): void {
+  delete data.sourceObject;
+  delete data.sourceSlot;
+  delete data.clientOwned;
 }
 
 function isIndexedEntryArray(value: unknown): value is Array<{
@@ -58,6 +69,15 @@ export function mergeGhostParsedData(
     delete merged.actionFirstPerson;
     delete merged.actionAnimPos;
   }
+  // A targeting or sniper beam swing carries either the scoped shooter
+  // or a standalone muzzle position. The latter clears the shooter group.
+  if (
+    update.initialPosition !== undefined &&
+    update.endPos !== undefined &&
+    update.sourceObject === undefined
+  ) {
+    clearBeamSource(merged);
+  }
   for (const [key, value] of Object.entries(update)) {
     if (value === undefined) continue;
     const existing = merged[key];
@@ -83,6 +103,7 @@ export function mergeGhostParsedData(
  */
 export class GhostStateAccumulator {
   private ghosts = new Map<number, AccumulatedGhost>();
+  private readonly beamReferences = new Set<AccumulatedGhost>();
   private netStrings: Map<number, string>;
 
   /** Seed the connection's string table when starting from a saved snapshot. */
@@ -100,6 +121,82 @@ export class GhostStateAccumulator {
       delete image.skinTagIndex;
     }
     return snapshot;
+  }
+
+  private trackBeamReferences(ghost: AccumulatedGhost): void {
+    const data = ghost.parsedData;
+    const target = ghost.linkTargetField && data[ghost.linkTargetField];
+    if (
+      ((data.endPos !== undefined || ghost.linkTargetField) &&
+        typeof data.sourceObject === "number" &&
+        data.sourceObject >= 0) ||
+      (typeof target === "number" && target >= 0)
+    ) {
+      this.beamReferences.add(ghost);
+    } else {
+      this.beamReferences.delete(ghost);
+    }
+  }
+
+  private clearMissingBeamReferences(
+    beam: AccumulatedGhost,
+    removedIndex?: number,
+  ): void {
+    const data = beam.parsedData;
+    const source = data.sourceObject;
+    const targetField = beam.linkTargetField;
+    const target = targetField && data[targetField];
+    let changed = false;
+    if (
+      typeof source === "number" &&
+      source >= 0 &&
+      (removedIndex === undefined
+        ? !this.ghosts.has(source)
+        : source === removedIndex)
+    ) {
+      clearBeamSource(data);
+      changed = true;
+    }
+    if (
+      targetField &&
+      typeof target === "number" &&
+      target >= 0 &&
+      (removedIndex === undefined
+        ? !this.ghosts.has(target)
+        : target === removedIndex)
+    ) {
+      delete data[targetField];
+      changed = true;
+    }
+    if (changed) this.trackBeamReferences(beam);
+  }
+
+  private removeGhost(index: number): void {
+    const old = this.ghosts.get(index);
+    if (!old) return;
+    this.ghosts.delete(index);
+    this.beamReferences.delete(old);
+    // Clear references before the index can name a different lifetime.
+    // Only visit active beams, since ordinary projectile deletes are common.
+    for (const beam of this.beamReferences)
+      this.clearMissingBeamReferences(beam, index);
+  }
+
+  private createGhost(index: number, classId: number, data: ParsedData): void {
+    this.removeGhost(index);
+    const className = NetObjectClassNames[classId - NetObjectClassFirst];
+    const ghost: AccumulatedGhost = {
+      classId,
+      parsedData: this.snapshotData(data),
+      linkTargetField:
+        className === "ELFProjectile"
+          ? "targetObject"
+          : className === "RepairProjectile"
+            ? "repairingObject"
+            : undefined,
+    };
+    this.ghosts.set(index, ghost);
+    this.trackBeamReferences(ghost);
   }
 
   applyPacket(parsed: PacketData): void {
@@ -128,25 +225,23 @@ export class GhostStateAccumulator {
       } else if (data.type === "GhostAlwaysObjectEvent") {
         const ghostAlways = data as GhostAlwaysObjectEventData;
         if (typeof ghostAlways.classId === "number" && ghostAlways.objectData) {
-          this.ghosts.set(ghostAlways.ghostIndex, {
-            classId: ghostAlways.classId,
-            parsedData: this.snapshotData(ghostAlways.objectData),
-          });
+          this.createGhost(
+            ghostAlways.ghostIndex,
+            ghostAlways.classId,
+            ghostAlways.objectData,
+          );
         }
       }
     }
 
     for (const ghost of parsed.ghosts) {
       if (ghost.type === "delete") {
-        this.ghosts.delete(ghost.index);
+        this.removeGhost(ghost.index);
         continue;
       }
       if (!ghost.parsedData) continue;
       if (ghost.type === "create" && typeof ghost.classId === "number") {
-        this.ghosts.set(ghost.index, {
-          classId: ghost.classId,
-          parsedData: this.snapshotData(ghost.parsedData),
-        });
+        this.createGhost(ghost.index, ghost.classId, ghost.parsedData);
       } else if (ghost.type === "update") {
         const existing = this.ghosts.get(ghost.index);
         if (!existing) {
@@ -158,13 +253,20 @@ export class GhostStateAccumulator {
           existing.parsedData,
           this.snapshotData(ghost.parsedData),
         );
+        this.trackBeamReferences(existing);
       }
     }
+
+    // An endpoint may be created later in the same packet. A slot still
+    // absent at this boundary cannot refer to a subsequent create.
+    for (const beam of this.beamReferences)
+      this.clearMissingBeamReferences(beam);
   }
 
   /** Clear ghosts while retaining the connection's string table. */
   clear(): void {
     this.ghosts.clear();
+    this.beamReferences.clear();
   }
 
   size(): number {

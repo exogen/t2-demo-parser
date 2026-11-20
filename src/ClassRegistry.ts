@@ -98,6 +98,16 @@ function bindCatalog<T extends { name: string }>(
   return { bound, missing };
 }
 
+function copyCatalog<T extends { name: string }>(
+  catalog: Catalog<T>,
+): Catalog<T> {
+  return {
+    byName: new Map(catalog.byName),
+    byClassId: new Map(catalog.byClassId),
+    classIdByName: new Map(catalog.classIdByName),
+  };
+}
+
 function bindingsOf<T extends { name: string }>(
   catalog: Catalog<T>,
 ): Map<number, string> {
@@ -118,6 +128,15 @@ export class ClassRegistry {
   private events = newCatalog<EventParserEntry>();
   private ghosts = newCatalog<GhostParserEntry>();
   private dataBlocks = newCatalog<DataBlockParserEntry>();
+
+  /** Copy parser bindings so later registrations and rebindings are independent. */
+  clone(): ClassRegistry {
+    const copy = new ClassRegistry();
+    copy.events = copyCatalog(this.events);
+    copy.ghosts = copyCatalog(this.ghosts);
+    copy.dataBlocks = copyCatalog(this.dataBlocks);
+    return copy;
+  }
 
   // --- Catalog registration (name → parser, no classId yet) ---
   //

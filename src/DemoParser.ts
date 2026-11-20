@@ -80,13 +80,12 @@ function readCheckedCount(
 
 export class DemoParser {
   private buffer: Uint8Array;
-  private view: DataView;
-  private offset: number;
   private registry: ClassRegistry;
   private ghostTracker: GhostTracker;
   private packetParser: PacketParser;
   // Stepping API state
   private _loaded = false;
+  private pendingLoad?: Promise<LoadResult>;
   private _header?: DemoHeader;
   private _initialBlock?: InitialBlockData;
   private _decompressedData?: Uint8Array;
@@ -101,9 +100,6 @@ export class DemoParser {
   private readonly _incremental: boolean;
   private _complete = true;
   private _inflator?: Inflate;
-  /** The zlib stream announced its own end (final deflate block seen) —
-   *  later bytes are trailing garbage and further pushes would throw. */
-  private _streamEnded = false;
   /** Backing store for the growing decompressed stream (incremental
    *  mode). `_decompressedData` is always a length-exact subarray of
    *  this, so every existing `.length`-based read stays correct. */
@@ -136,12 +132,6 @@ export class DemoParser {
     },
   ) {
     this.buffer = buffer;
-    this.view = new DataView(
-      buffer.buffer,
-      buffer.byteOffset,
-      buffer.byteLength,
-    );
-    this.offset = 0;
     this._incremental = options?.incremental === true;
     this._ignoreProtocolVersion = options?.ignoreProtocolVersion === true;
     this._haltOnFault = options?.haltOnFault;
@@ -232,18 +222,24 @@ export class DemoParser {
    * ghosts, control object, mission name), and asynchronously decompresses
    * the block stream. No block indexing — blocks are read lazily via nextBlock().
    *
-   * Idempotent — second call returns cached result.
+   * Overlapping calls share the same load. Later calls return the cached data.
    */
-  async load(): Promise<LoadResult> {
+  load(): Promise<LoadResult> {
     if (this._loaded) {
-      return {
+      return Promise.resolve({
         header: this._header!,
         initialBlock: this._initialBlock!,
-      };
+      });
     }
+    return (this.pendingLoad ??= this.loadDemo().finally(() => {
+      this.pendingLoad = undefined;
+    }));
+  }
 
+  private async loadDemo(): Promise<LoadResult> {
     // Phase 1: header + initial block
-    const header = this.readHeader();
+    const { header, byteLength: headerSize } = this.readHeader();
+    const streamOffset = headerSize + header.initialBlockSize;
     debug(
       'header: "%s" version=0x%s length=%dms (%smin) initialBlockSize=%d',
       header.identString,
@@ -253,26 +249,23 @@ export class DemoParser {
       header.initialBlockSize,
     );
 
-    if (this.buffer.length < this.offset + header.initialBlockSize) {
+    if (this.buffer.length < streamOffset) {
       if (this._incremental) {
         throw new RangeError(
           `incremental parser needs the full initial block up front: have ${
-            this.buffer.length - this.offset
+            this.buffer.length - headerSize
           } bytes, need ${header.initialBlockSize}`,
         );
       }
       throw new RangeError(
         `truncated demo: initial block needs ${header.initialBlockSize} bytes, have ${
-          this.buffer.length - this.offset
+          this.buffer.length - headerSize
         }`,
       );
     }
-    const initialBlockData = this.buffer.subarray(
-      this.offset,
-      this.offset + header.initialBlockSize,
+    const initialBlock = this.readInitialBlock(
+      this.buffer.subarray(headerSize, streamOffset),
     );
-    const initialBlock = this.readInitialBlock(initialBlockData);
-    this.offset += header.initialBlockSize;
 
     if (this._incremental) {
       // Phase 2 (incremental): streaming inflate. Compressed bytes
@@ -284,17 +277,14 @@ export class DemoParser {
       this._backing = new Uint8Array(1 << 20);
       this._decompressedData = this._backing.subarray(0, 0);
       this._decompressedView = new DataView(this._backing.buffer, 0, 0);
-      this._inflator = new Inflate((chunk, final) => {
-        this._appendDecompressed(chunk);
-        if (final) this._streamEnded = true;
-      });
-      const tail = this.buffer.subarray(this.offset);
+      this._inflator = new Inflate((chunk) => this._appendDecompressed(chunk));
+      const tail = this.buffer.subarray(streamOffset);
       // The prefix buffer has served its purpose (header + initial block
       // are parsed); don't retain arbitrary compressed tail bytes twice.
       if (tail.length > 0) this._inflator.push(tail);
     } else {
       // Phase 2: async decompress block stream
-      const compressedData = this.buffer.subarray(this.offset);
+      const compressedData = this.buffer.subarray(streamOffset);
       debug("compressed block stream: %d bytes", compressedData.length);
 
       const decompressedData = await inflateRaw(compressedData);
@@ -359,7 +349,7 @@ export class DemoParser {
     if (!this._incremental) throw new Error("not an incremental parser");
     if (!this._loaded) throw new Error("must call load() first");
     if (this._complete) throw new Error("already finished");
-    if (chunk.length === 0 || this._streamEnded) return;
+    if (chunk.length === 0) return;
     this._inflator!.push(chunk);
   }
 
@@ -372,15 +362,12 @@ export class DemoParser {
     if (!this._incremental) throw new Error("not an incremental parser");
     if (!this._loaded) throw new Error("must call load() first");
     if (this._complete) return;
-    if (!this._streamEnded) {
-      try {
-        this._inflator!.push(new Uint8Array(0), true);
-      } catch (err) {
-        // A truncated zlib stream: the blocks inflated so far remain
-        // valid (nextBlock bounds-checks the tail) — degrade to a
-        // shorter demo rather than failing the whole load.
-        debug("finish(): inflate flush failed: %o", err);
-      }
+    try {
+      this._inflator!.push(new Uint8Array(0), true);
+    } catch (err) {
+      // A truncated deflate stream can still contain complete blocks.
+      // nextBlock bounds-checks the remaining tail.
+      debug("finish(): inflate flush failed: %o", err);
     }
     this._inflator = undefined;
     this._complete = true;
@@ -532,8 +519,8 @@ export class DemoParser {
   /**
    * An independent parser over the same recording, at its first block: it
    * shares this parser's header, initial block and decompressed block
-   * stream, so nothing is inflated again, but has its own cursor, ghost
-   * tracker and packet state (as after reset()). The block stream must be
+   * stream. It copies the registry bindings and starts with its own cursor,
+   * ghost tracker and packet state (as after reset()). The block stream must be
    * complete: an incremental parser forks only after finish().
    */
   fork(): DemoParser {
@@ -545,7 +532,7 @@ export class DemoParser {
       packetProtocolVersion: this._packetProtocolVersion,
       haltOnFault: this._haltOnFault,
     });
-    fork.offset = this.offset;
+    fork.registry = this.registry.clone();
     fork._header = this._header;
     fork._initialBlock = this._initialBlock;
     fork._decompressedData = this._decompressedData;
@@ -677,11 +664,9 @@ export class DemoParser {
    * does: the ident string must match and the protocol version must be
    * the one this build speaks (unless `ignoreProtocolVersion` is set).
    */
-  private readHeader(): DemoHeader {
-    const { header, byteLength } = DemoParser.peekHeader(
-      this.buffer.subarray(this.offset),
-    );
-    this.offset += byteLength;
+  private readHeader(): ReturnType<typeof DemoParser.peekHeader> {
+    const result = DemoParser.peekHeader(this.buffer);
+    const { header } = result;
     if (header.identString !== DemoIdentString) {
       throw new Error(
         `not a Tribes 2 recording: ident string ${JSON.stringify(header.identString)}`,
@@ -696,7 +681,7 @@ export class DemoParser {
       }
       debug("parsing demo with unexpected %s", detail);
     }
-    return header;
+    return result;
   }
 
   /** Parse the initial block: DataBlocks, scores, targets, connection state,

@@ -1366,12 +1366,16 @@ function elfProjectileUnpackUpdate(
     conn,
   );
 
-  if (bs.readFlag()) {
-    if (bs.readFlag()) {
-      ({ sourceObject: result.sourceObject, sourceSlot: result.sourceSlot } =
-        readSourceObjectSlot(bs));
-      result.targetObject = readObjectRef11(bs); // writeRangedU32(0, 1024)
-    }
+  if (bs.readFlag() && bs.readFlag()) {
+    ({ sourceObject: result.sourceObject, sourceSlot: result.sourceSlot } =
+      readSourceObjectSlot(bs));
+    result.targetObject = readObjectRef11(bs); // writeRangedU32(0, 1024)
+  } else {
+    // Retail ELFProjectile::unpackUpdate (0x64d470) clears both references
+    // when either flag is false. Preserve the distinction from a sparse update.
+    result.sourceObject = -1;
+    result.sourceSlot = -1;
+    result.targetObject = -1;
   }
 
   return result;
@@ -1399,6 +1403,12 @@ function repairProjectileUnpackUpdate(
       ({ sourceObject: result.sourceObject, sourceSlot: result.sourceSlot } =
         readSourceObjectSlot(bs));
       result.repairingObject = readObjectRef11(bs); // writeRangedU32(0, 1024)
+    } else {
+      // Unlike ELF, retail RepairProjectile::unpackUpdate (0x645520) only
+      // clears the endpoints when the outer mask is present.
+      result.sourceObject = -1;
+      result.sourceSlot = -1;
+      result.repairingObject = -1;
     }
   }
   // Non-initial update: no data

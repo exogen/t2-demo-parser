@@ -37,10 +37,10 @@ function imageStates(slots: readonly number[]): BitStream {
       .writeF32(0.5 + index / 8) // timeout
       .writeFlag(true) // wait for timeout
       .writeFlag(index === 10) // fire
-      .writeFlag(false) // eject shell
-      .writeFlag(false) // scale animation
-      .writeFlag(true) // direction
-      .writeFlag(false) // reload
+      .writeFlag(index === 10 || index === 30) // eject shell
+      .writeFlag(index === 2) // shockwave
+      .writeFlag(index === 0 || index === 10) // scale animation
+      .writeFlag(index !== 2) // direction
       .writeFlag(false) // default energy drain
       .writeInt(0, 3) // loaded
       .writeInt(0, 3) // spin
@@ -83,12 +83,35 @@ describe("ShapeBaseImageData state slots", () => {
       transitionOnNotLoaded: 0,
       sequence: 0,
       timeoutValue: 0.5,
+      fire: false,
+      ejectShell: false,
+      shockwave: false,
+      scaleAnimation: true,
+      direction: true,
     });
-    expect(states.find(({ index }) => index === 10)?.fire).toBe(true);
+    expect(states[1]).toMatchObject({
+      fire: false,
+      ejectShell: false,
+      shockwave: true,
+      scaleAnimation: false,
+      direction: false,
+    });
+    expect(states[2]).toMatchObject({
+      fire: true,
+      ejectShell: true,
+      shockwave: false,
+      scaleAnimation: true,
+      direction: true,
+    });
     expect(states[3]).toMatchObject({
       transitionOnTimeout: 1,
       sequence: 30,
       timeoutValue: 4.25,
+      fire: false,
+      ejectShell: true,
+      shockwave: false,
+      scaleAnimation: false,
+      direction: true,
     });
     expect(stream.readU32()).toBe(0x12345678);
     expect(stream.isError()).toBe(false);

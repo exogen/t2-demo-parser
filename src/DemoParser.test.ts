@@ -229,6 +229,26 @@ describe("DemoParser stepping API", () => {
     expect(() => parser.reset()).toThrow("must call load() first");
   });
 
+  it("shares one load between concurrent callers", { skip }, async () => {
+    const parser = loadDemo();
+    const pending = parser.load();
+    const [first, second] = await Promise.all([pending, parser.load()]);
+    expect(second.initialBlock).toBe(first.initialBlock);
+    expect(second.header).toBe(first.header);
+    expect(parser.nextBlock()?.index).toBe(0);
+    expect((await parser.load()).initialBlock).toBe(first.initialBlock);
+    expect(parser.nextBlock()?.index).toBe(1);
+  });
+
+  it("reports the same input error when a failed load is retried", { skip }, async () => {
+    const bytes = fs.readFileSync(path.join(DEMO_DIR, demoFile));
+    const { byteLength } = DemoParser.peekHeader(bytes);
+    const parser = new DemoParser(bytes.subarray(0, byteLength));
+    await expect(parser.load()).rejects.toThrow(/truncated demo: initial block/);
+    await expect(parser.load()).rejects.toThrow(/truncated demo: initial block/);
+    expect(parser.loaded).toBe(false);
+  });
+
   it("load() returns header/initialBlock with valid data", { skip, timeout: 30_000 }, async () => {
     const parser = loadDemo();
     const result = await parser.load();

@@ -30,6 +30,56 @@ import type { GhostTracker } from "./GhostManager.js";
 const debugGhosts = createDebug("t2-demo-parser:ghosts");
 const debugEvents = createDebug("t2-demo-parser:events");
 
+/** Normalize datablocks saved by the decoder before the weapon-field fixes. */
+function restoreLegacyWeaponDataBlock(data: ParsedData): ParsedData {
+  if (
+    Array.isArray(data.states) &&
+    data.states.some((state) => "reload" in state)
+  ) {
+    return {
+      ...data,
+      states: data.states.map(
+        ({ reload, scaleAnimation, direction, ...state }) => ({
+          ...state,
+          shockwave: scaleAnimation,
+          scaleAnimation: direction,
+          direction: reload,
+        }),
+      ),
+    };
+  }
+  if (
+    typeof data.useRadiusMass === "boolean" &&
+    typeof data.fade === "boolean" &&
+    typeof data.gravModifier === "number"
+  ) {
+    return { ...data, fade: data.useRadiusMass, useRadiusMass: data.fade };
+  }
+  const { faceViewerLinkTime, lifetime } = data;
+  if (typeof faceViewerLinkTime === "number" && typeof lifetime === "number") {
+    const bits = new DataView(new ArrayBuffer(4));
+    bits.setInt32(0, lifetime);
+    data = {
+      ...data,
+      emitterDelay: faceViewerLinkTime,
+      bubbleEmitTime: bits.getFloat32(0),
+    };
+    delete data.faceViewerLinkTime;
+    delete data.lifetime;
+  }
+  if (
+    typeof data.fizzleUnderwaterMS === "number" &&
+    typeof data.activateDelayMS === "number"
+  ) {
+    return {
+      ...data,
+      fizzleUnderwaterMS: data.fizzleUnderwaterMS | 0,
+      activateDelayMS: data.activateDelayMS | 0,
+    };
+  }
+  return data;
+}
+
 function errorMessage(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
@@ -167,6 +217,7 @@ export class PacketParser {
         protocolNoDispatch: this.protocolNoDispatch,
         packetsDroppedAfterFault: this.packetsDroppedAfterFault,
       }),
+      weaponDataBlockFieldsCorrected: true,
       dataBlockDataMap: this.dataBlockDataMap
         ? new Map(this.dataBlockDataMap)
         : undefined,
@@ -174,11 +225,22 @@ export class PacketParser {
   }
 
   restoreState(state: ReturnType<PacketParser["saveState"]>): void {
-    const { dataBlockDataMap, ...mutable } = state;
+    const { weaponDataBlockFieldsCorrected, dataBlockDataMap, ...mutable } =
+      state;
     Object.assign(this, structuredClone(mutable));
     this.dataBlockDataMap = dataBlockDataMap
       ? new Map(dataBlockDataMap)
       : undefined;
+    if (!weaponDataBlockFieldsCorrected) {
+      if (this.dataBlockDataMap)
+        for (const [id, data] of this.dataBlockDataMap)
+          this.dataBlockDataMap.set(id, restoreLegacyWeaponDataBlock(data));
+      for (const { event } of this.pendingGuaranteedEvents) {
+        const data = event.parsedData as SimDataBlockEventData | undefined;
+        if (data?.type === "SimDataBlockEvent" && data.dataBlockData)
+          data.dataBlockData = restoreLegacyWeaponDataBlock(data.dataBlockData);
+      }
+    }
   }
 
   /** The negotiated wire version, or null when only demo bytes are available. */

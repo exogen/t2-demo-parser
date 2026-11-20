@@ -91,6 +91,32 @@ describe("DemoParser.fork", () => {
     expect(rest).toEqual(drain(reference));
   });
 
+  it("preserves custom parser bindings without sharing later registry edits", async () => {
+    const source = new DemoParser(readDemo(DEMO_FILE));
+    const registry = source.getRegistry();
+    const id = registry.getGhostClassId("Player")!;
+    const original = registry.getGhostParser(id)!;
+    const custom = {
+      ...original,
+      unpackUpdate: (...args: Parameters<typeof original.unpackUpdate>) => ({
+        ...original.unpackUpdate(...args),
+        customPlayer: true,
+      }),
+    };
+    registry.catalogGhost(custom);
+    registry.bindDeterministicGhosts(["Player"], id);
+    await source.load();
+    const fork = source.fork();
+    registry.catalogGhost(original);
+    registry.bindDeterministicGhosts(["Player"], id);
+    expect(fork.getRegistry().getGhostParser(id)?.unpackUpdate).toBe(
+      custom.unpackUpdate,
+    );
+    expect(registry.getGhostParser(id)?.unpackUpdate).toBe(
+      original.unpackUpdate,
+    );
+  });
+
   it("shares the loaded header and initial block", async () => {
     const source = new DemoParser(readDemo(DEMO_FILE));
     const loaded = await source.load();

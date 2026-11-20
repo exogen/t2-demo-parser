@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { BitStream } from "./BitStream.js";
+import { BitWriter } from "./BitWriter.js";
+import { createDefaultRegistry } from "./defaultRegistry.js";
+import { GhostTracker } from "./GhostManager.js";
 import { DemoParser } from "./DemoParser.js";
 import { createLiveParser } from "./LiveParser.js";
 import {
@@ -158,6 +162,224 @@ describe("mergeGhostParsedData", () => {
     );
     expect(merged.wheels).toEqual([{ spring: 3 }, { spring: 4 }]);
   });
+});
+
+describe("beam shooter scope", () => {
+  const beamIndex = 9;
+  const muzzle = { x: 1, y: 2, z: 3 };
+  const endPos = { x: 4, y: 5, z: 6 };
+  const shooter = {
+    index: 7,
+    type: "create",
+    classId: 2,
+    parsedData: { dataBlockId: 651 },
+  };
+  const beam = {
+    index: beamIndex,
+    type: "create",
+    classId: 42,
+    parsedData: {
+      dataBlockId: 513,
+      initialPosition: { x: 0, y: 0, z: 0 },
+      endPos,
+      sourceObject: shooter.index,
+      sourceSlot: 2,
+      clientOwned: true,
+      truncated: false,
+    },
+  };
+  const currentBeam = (accumulator: GhostStateAccumulator) =>
+    accumulator.toInitialGhosts().find(({ index }) => index === beamIndex)
+      ?.parsedData;
+
+  it("clears the old shooter when a swing packet carries a standalone muzzle", () => {
+    const accumulator = new GhostStateAccumulator();
+    accumulator.applyPacket({
+      events: [],
+      ghosts: [beam, shooter],
+    } as unknown as PacketData);
+    accumulator.applyPacket({
+      events: [],
+      ghosts: [
+        {
+          index: beamIndex,
+          type: "update",
+          parsedData: { initialPosition: muzzle, endPos, truncated: true },
+        },
+      ],
+    } as unknown as PacketData);
+    expect(currentBeam(accumulator)).toEqual({
+      dataBlockId: 513,
+      initialPosition: muzzle,
+      endPos,
+      truncated: true,
+    });
+
+    const source = { sourceObject: 0, sourceSlot: 1, clientOwned: false };
+    accumulator.applyPacket({
+      events: [],
+      ghosts: [
+        {
+          index: beamIndex,
+          type: "update",
+          parsedData: { ...source, endPos, truncated: false },
+        },
+        { ...shooter, index: 0 },
+      ],
+    } as unknown as PacketData);
+    expect(currentBeam(accumulator)).toEqual({
+      dataBlockId: 513,
+      initialPosition: muzzle,
+      endPos,
+      truncated: false,
+      ...source,
+    });
+  });
+
+  it.each(["delete", "create", "ghost-always"])(
+    "keeps a beam detached when its shooter's slot is reused after %s",
+    (replacement) => {
+      const accumulator = new GhostStateAccumulator();
+      accumulator.applyPacket({
+        events: [],
+        ghosts: [beam, shooter],
+      } as unknown as PacketData);
+      expect(currentBeam(accumulator)).toMatchObject(beam.parsedData);
+
+      if (replacement === "delete") {
+        accumulator.applyPacket({
+          events: [],
+          ghosts: [{ index: shooter.index, type: "delete" }],
+        } as unknown as PacketData);
+        expect(currentBeam(accumulator)).not.toHaveProperty("sourceObject");
+      }
+      accumulator.applyPacket({
+        events:
+          replacement === "ghost-always"
+            ? [
+                {
+                  parsedData: {
+                    type: "GhostAlwaysObjectEvent",
+                    ghostIndex: shooter.index,
+                    classId: shooter.classId,
+                    objectData: { dataBlockId: 652 },
+                  },
+                },
+              ]
+            : [],
+        ghosts:
+          replacement === "ghost-always"
+            ? []
+            : [{ ...shooter, parsedData: { dataBlockId: 652 } }],
+      } as unknown as PacketData);
+
+      expect(currentBeam(accumulator)).toEqual({
+        dataBlockId: 513,
+        initialPosition: beam.parsedData.initialPosition,
+        endPos,
+        truncated: false,
+      });
+    },
+  );
+
+  it("does not attach a stale source when its slot first appears on a later packet", () => {
+    const accumulator = new GhostStateAccumulator();
+    accumulator.applyPacket({
+      events: [],
+      ghosts: [beam],
+    } as unknown as PacketData);
+    expect(currentBeam(accumulator)).not.toHaveProperty("sourceObject");
+    accumulator.applyPacket({
+      events: [],
+      ghosts: [shooter],
+    } as unknown as PacketData);
+    expect(currentBeam(accumulator)).not.toHaveProperty("sourceObject");
+  });
+});
+
+describe("ELF and repair beam endpoints", () => {
+  const linkTypes = [
+    ["ELFProjectile", "targetObject"],
+    ["RepairProjectile", "repairingObject"],
+  ] as const;
+
+  function decodeLink(name: (typeof linkTypes)[number][0], ...mask: boolean[]) {
+    const registry = createDefaultRegistry();
+    const classId = registry.getGhostClassId(name)!;
+    const parser = registry.getGhostParser(classId)!;
+    const writer = new BitWriter().writeFlag(false).writeFlag(false); // GameBase masks.
+    for (const flag of mask) writer.writeFlag(flag);
+    if (mask[0] && mask[1])
+      writer.writeInt(0, 11).writeInt(3, 3).writeInt(7, 11);
+    writer.writeU32(0x12345678);
+    const stream = new BitStream(writer.finish());
+    const parsedData = parser.unpackUpdate(stream, false, {
+      compressionPoint: { x: 0, y: 0, z: 0 },
+      ghostTracker: new GhostTracker(),
+    });
+    expect(stream.readU32()).toBe(0x12345678);
+    expect(stream.isError()).toBe(false);
+    return { classId, parsedData };
+  }
+
+  it.each(linkTypes)(
+    "%s distinguishes an absent link from a sparse mask",
+    (name, targetField) => {
+      const detached = { sourceObject: -1, sourceSlot: -1, [targetField]: -1 };
+      expect(decodeLink(name, false).parsedData).toEqual(
+        name === "ELFProjectile" ? detached : {},
+      );
+      expect(decodeLink(name, true, false).parsedData).toEqual(detached);
+      expect(decodeLink(name, true, true).parsedData).toEqual({
+        sourceObject: 0,
+        sourceSlot: 3,
+        [targetField]: 7,
+      });
+    },
+  );
+
+  it.each(linkTypes)(
+    "%s preserves only the endpoint lifetimes named by its latest update",
+    (name, targetField) => {
+      const accumulator = new GhostStateAccumulator();
+      const linked = decodeLink(name, true, true);
+      const current = () =>
+        accumulator.toInitialGhosts().find(({ index }) => index === 9)
+          ?.parsedData;
+      const source = { index: 0, type: "create", classId: 25, parsedData: {} };
+      const target = { ...source, index: 7 };
+      accumulator.applyPacket({
+        events: [],
+        ghosts: [{ ...linked, type: "create", index: 9 }, source, target],
+      } as unknown as PacketData);
+      expect(current()).toEqual(linked.parsedData);
+
+      // The target slot is recycled before the next snapshot is taken.
+      accumulator.applyPacket({
+        events: [],
+        ghosts: [{ index: 7, type: "delete" }, target],
+      } as unknown as PacketData);
+      expect(current()).toEqual({ sourceObject: 0, sourceSlot: 3 });
+
+      // Only a new wire update may bind the same numeric slot again.
+      accumulator.applyPacket({
+        events: [],
+        ghosts: [{ ...linked, type: "update", index: 9 }],
+      } as unknown as PacketData);
+      expect(current()).toEqual(linked.parsedData);
+
+      accumulator.applyPacket({
+        events: [],
+        ghosts: [source],
+      } as unknown as PacketData);
+      expect(current()).toEqual({ [targetField]: 7 });
+      accumulator.applyPacket({
+        events: [],
+        ghosts: [{ index: 7, type: "delete" }],
+      } as unknown as PacketData);
+      expect(current()).toEqual({});
+    },
+  );
 });
 
 describe("TargetFreeEvent side effects", () => {

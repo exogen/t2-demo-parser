@@ -393,12 +393,10 @@ function shapeBaseImageDataUnpack(bs: BitStream): ShapeBaseImageDataBlock {
     const fire = bs.readFlag();
     // ejectShell — flag
     const ejectShell = bs.readFlag();
-    // scaleAnimation — flag
+    // Retail ShapeBaseImageData state flags at 0xe27, 0xe29, 0xe2a.
+    const shockwave = bs.readFlag();
     const scaleAnimation = bs.readFlag();
-    // direction — flag
     const direction = bs.readFlag();
-    // reload — flag (confirmed at offset 0xe2a in binary, between direction and energyDrain)
-    const reload = bs.readFlag();
     // energyDrain — flag(!=default) then F32
     const energyDrain = bs.readFlag() ? bs.readF32() : undefined;
     // loaded — readInt(3)
@@ -440,9 +438,9 @@ function shapeBaseImageDataUnpack(bs: BitStream): ShapeBaseImageDataBlock {
       waitForTimeout,
       fire,
       ejectShell,
+      shockwave,
       scaleAnimation,
       direction,
-      reload,
       energyDrain,
       loaded,
       spin,
@@ -922,9 +920,8 @@ function projectileDataUnpack(bs: BitStream): ProjectileDataBlock {
   // readString (projectileName)
   result.projectileShapeName = bs.readString();
 
-  // 2×S32
-  result.faceViewerLinkTime = bs.readS32();
-  result.lifetime = bs.readS32();
+  result.emitterDelay = bs.readS32(); // 0x48
+  result.bubbleEmitTime = bs.readF32(); // 0xd0
 
   // flag(faceViewer)
   result.faceViewer = bs.readFlag();
@@ -1014,9 +1011,9 @@ function linearProjectileDataUnpack(bs: BitStream): LinearProjectileDataBlock {
   result.reflectOnWaterImpactAngle = bs.readRangedU32(0, 90);
   result.deflectionOnWaterImpact = bs.readRangedU32(0, 90);
 
-  // 2×U32 (0x154, 0x158)
-  result.fizzleUnderwaterMS = bs.readU32();
-  result.activateDelayMS = bs.readU32();
+  // 2×S32 (0x154, 0x158), with -1 for a disabled timer.
+  result.fizzleUnderwaterMS = bs.readS32();
+  result.activateDelayMS = bs.readS32();
 
   // flag (0x15c)
   result.doDynamicClientHits = bs.readFlag();
@@ -1539,8 +1536,8 @@ function debrisDataUnpack(bs: BitStream): DebrisDataBlock {
   result.velocityVariance = bs.readF32(); // 0x48
 
   // 2 bools via stream->write(sizeof(bool)) = 8 bits each (0x70, 0x71)
-  result.useRadiusMass = readBool(bs);
-  result.fade = readBool(bs);
+  result.fade = readBool(bs); // 0x70, used by Debris::renderObject
+  result.useRadiusMass = readBool(bs); // 0x71, used by Debris::onAdd
 
   result.baseRadius = bs.readF32(); // 0x74
   result.gravModifier = bs.readF32(); // 0x78
